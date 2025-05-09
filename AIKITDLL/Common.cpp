@@ -319,12 +319,12 @@ int RunFullTest()
     }
     AIKITDLL::LogDebug("INFO: Voice wake-up 初始化成功");
     AIKITDLL::lastResult = "INFO: Voice wake-up module initialized successfully.";
-  /*  AIKITDLL::LogDebug("进入TestIvw70");
-    TestIvw70(cbs);*/
     /*AIKITDLL::LogDebug("进入TestIvw70");
-    TestIvw70Microphone(cbs);*/
-    AIKITDLL::LogDebug("进入TestEsr");
-    TestEsr(cbs);
+    TestIvw70(cbs);*/
+    AIKITDLL::LogDebug("进入TestIvw70");
+    TestIvw70Microphone(cbs);
+    /*AIKITDLL::LogDebug("进入TestEsr");
+    TestEsr(cbs);*/
     // 确保关闭文件资源
     if (AIKITDLL::fin != nullptr) {
         fclose(AIKITDLL::fin);

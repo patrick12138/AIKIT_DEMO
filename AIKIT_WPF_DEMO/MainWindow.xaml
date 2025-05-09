@@ -24,16 +24,7 @@
                 <TextBlock Text="API Secret:" Width="80" VerticalAlignment="Center"/>
                 <TextBox x:Name="TxtApiSecret" Text="ZDkyM2RkZjcyYTZmM2VjMDM0MzVmZDJl" Width="200" Margin="5,0"/>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,5">
-                <TextBlock Text="工作目录:" Width="80" VerticalAlignment="Center"/>
-                <TextBox x:Name="TxtWorkDir" Text=".\" Width="200" Margin="5,0"/>
-                <Button x:Name="BtnBrowse" Content="浏览..." Width="80" Margin="5,0" Click="BtnBrowse_Click"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,5">
-                <TextBlock Text="资源路径:" Width="80" VerticalAlignment="Center"/>
-                <TextBox x:Name="TxtResourcePath" Text=".\resource\ivw70\xbxb.txt" Width="200" Margin="5,0"/>
-                <Button x:Name="BtnBrowseResource" Content="浏览..." Width="80" Margin="5,0" Click="BtnBrowseResource_Click"/>
-            </StackPanel>
+        
             <StackPanel Orientation="Horizontal" Margin="0,5">
                 <TextBlock Text="唤醒阈值:" Width="80" VerticalAlignment="Center"/>
                 <Slider x:Name="SliderThreshold" Minimum="0" Maximum="1000" Value="900" Width="180" Margin="5,0"/>
@@ -47,15 +38,10 @@
                 <TextBlock x:Name="TxtLog" TextWrapping="Wrap" Margin="5"/>
             </ScrollViewer>
         </Border>
-        <TextBlock Text="Main Application Window. Voice popup will appear." HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <!-- 底部按钮区 -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10" HorizontalAlignment="Center">
-            <Button x:Name="BtnInitSdk" Content="初始化SDK" Width="100" Margin="5" Click="BtnInitSdk_Click"/>
-            <Button x:Name="BtnInitEngine" Content="初始化引擎" Width="100" Margin="5" Click="BtnInitEngine_Click" IsEnabled="False"/>
-            <Button x:Name="BtnStartMicrophone" Content="开始麦克风唤醒" Width="120" Margin="5" Click="BtnStartMicrophone_Click" IsEnabled="False"/>
-            <Button x:Name="BtnStop" Content="停止" Width="100" Margin="5" Click="BtnStop_Click" IsEnabled="False"/>
-            <Button x:Name="BtnRunFullTest" Content="总测试" Width="100" Margin="5" Click="BtnRunFullTest_Click"/>
-            <Button x:Name="BtnExit" Content="退出" Width="100" Margin="5" Click="BtnExit_Click"/>
+            <Button x:Name="BtnRunFullTest" Content="语音唤醒测试" Width="100" Margin="5" Click="BtnRunFullTest_Click"/>
+            <Button x:Name="BtnTestPopup" Content="测试弹窗" Width="100" Margin="5" Click="BtnTestPopup_Click"/>
         </StackPanel>
     </Grid>
 </Window>
