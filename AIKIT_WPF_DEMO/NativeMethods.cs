@@ -61,7 +61,7 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetReadableResult();
 
-        // 新增 - 检查是否有新结果
+        // 检查是否有新结果
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         [return: MarshalAs(UnmanagedType.I1)]  // 将C++ bool映射为C# bool
         public static extern bool HasNewPgsResult();
@@ -82,7 +82,7 @@ namespace AikitWpfDemo
         [return: MarshalAs(UnmanagedType.I1)]
         public static extern bool HasNewReadableResult();
 
-        // 新增 - 清空所有结果缓冲区
+        //  清空所有结果缓冲区
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern void ClearAllResultBuffers();
         #endregion

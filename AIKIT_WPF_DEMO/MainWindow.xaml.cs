@@ -223,7 +223,7 @@ namespace AikitWpfDemo
                 }
 
                 // 清空所有结果缓冲区
-                NativeMethods.ClearAllResultBuffers();
+                //NativeMethods.ClearAllResultBuffers();
                 // 关闭弹窗
                 _cortanaPopup?.Close();
             }
@@ -253,7 +253,7 @@ namespace AikitWpfDemo
                 // 重置状态，避免误报
                 NativeMethods.ResetWakeupStatus();
                 NativeMethods.ResetEsrStatus();
-                NativeMethods.ClearAllResultBuffers();
+                //NativeMethods.ClearAllResultBuffers();
 
                 // 启动识别结果监控定时器
                 if (!_resultMonitorTimer.IsEnabled)

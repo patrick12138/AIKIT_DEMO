@@ -164,6 +164,7 @@
     <ClInclude Include="winrec.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AikitMain.cpp" />
     <ClCompile Include="CnenEsrWrapper.cpp" />
     <ClCompile Include="Common.cpp" />
     <ClCompile Include="dllmain.cpp" />

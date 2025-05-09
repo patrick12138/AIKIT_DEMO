@@ -463,13 +463,13 @@ int TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 	AIKIT::AIKIT_ParamBuilder* paramBuilder = nullptr;
 	int ret = 0;
 
-	AIKITDLL::LogInfo("======================= IVW70 麦克风测试开始 ===========================");
+	AIKITDLL::LogInfo("======================= IVW70 麦克风输入开启 ===========================");
 
 	// 注册能力回调
 	ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
 	if (ret != 0) {
 		AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
-		return;
+		return ret;
 	}
 	AIKITDLL::LogInfo("注册能力回调成功");
 
@@ -477,7 +477,7 @@ int TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 	paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
 	if (!paramBuilder) {
 		AIKITDLL::LogError("创建参数构建器失败");
-		return;
+		return -1;
 	}
 
 	// 设置参数
@@ -502,6 +502,6 @@ int TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 		paramBuilder = nullptr;
 	}
 
-	AIKITDLL::LogInfo("======================= IVW70 麦克风测试结束 ===========================");
+	AIKITDLL::LogInfo("======================= IVW70 麦克风输出结束 ===========================");
 	return ret;
 }

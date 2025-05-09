@@ -26,12 +26,6 @@ extern "C" {
 	// 清理SDK资源
 	AIKITDLL_API void CleanupSDK();
 
-	// 获取最后的结果或错误信息
-	AIKITDLL_API const char* GetLastResult();
-
-	// 运行完整测试流程（初始化、能力测试、清理）
-	AIKITDLL_API int RunFullTest();
-
 #ifdef __cplusplus
 }
 #endif

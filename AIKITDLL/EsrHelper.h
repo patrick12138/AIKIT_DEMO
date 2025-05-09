@@ -61,7 +61,6 @@ extern "C" {
 
 	// 从文件获取ESR结果
 	AIKITDLL_API int EsrFromFile(const char* abilityID, const char* audio_path, int fsa_count, long* readLen);
-
 #ifdef __cplusplus
 }
 #endif
