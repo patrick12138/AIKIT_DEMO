@@ -1,0 +1,27 @@
+# 编译输出
+windows_ivw_cnenesr_xtts/
+include/
+libs/
+x64/
+*.obj
+*.pdb
+*.dll
+*.lib
+*.exp
+
+# 临时文件和日志
+files/
+*.log
+*.tmp
+
+# 资源文件
+resource/
+
+# Visual Studio 临时文件
+*.user
+*.suo
+*.sln.docstates
+
+# 其他
+.DS_Store
+Thumbs.db
