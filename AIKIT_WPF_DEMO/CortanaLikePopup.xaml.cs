@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input; // 添加鼠标输入命名空间
 using System.Windows.Media.Animation; // Storyboard 需要
-using System.Windows.Threading;
 
 namespace AikitWpfDemo
 {
@@ -27,7 +26,8 @@ namespace AikitWpfDemo
         private bool _isDragging = false;
         private Point _dragStartPoint;
 
-        // 模拟语音识别的预设指令
+        // 注释掉模拟语音识别的预设指令
+        /*
         private List<string> _simulatedCommands = new List<string>
         {
             "我想切歌",
@@ -44,6 +44,7 @@ namespace AikitWpfDemo
         private DispatcherTimer _typingTimer;   // 模拟打字效果的定时器
         private string _currentFullCommand;     // 当前完整的指令
         private int _currentCharIndex = 0;      // 当前显示到的字符索引
+        */
 
         public CortanaLikePopup()
         {
@@ -51,6 +52,8 @@ namespace AikitWpfDemo
             // 设置DataContext以支持绑定
             this.DataContext = this;
             
+            // 注释掉模拟相关初始化
+            /*
             // 初始化显示定时器
             _displayTimer = new DispatcherTimer();
             _displayTimer.Interval = TimeSpan.FromSeconds(2.5); // 每句话之间的间隔
@@ -60,6 +63,7 @@ namespace AikitWpfDemo
             _typingTimer = new DispatcherTimer();
             _typingTimer.Interval = TimeSpan.FromMilliseconds(100); // 打字速度
             _typingTimer.Tick += TypingTimer_Tick;
+            */
 
             // 添加鼠标事件处理
             this.MouseLeftButtonDown += Window_MouseLeftButtonDown;
@@ -112,16 +116,19 @@ namespace AikitWpfDemo
             Storyboard pulsingAnimation = (Storyboard)this.Resources["PulsingAnimation"];
             pulsingAnimation?.Begin(this, true);
             
-            // 启动模拟识别
-            StartSimulation();
+            // 移除模拟识别启动
+            // StartSimulation();
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            StopSimulation();
+            // 移除停止模拟的调用
+            // StopSimulation();
             this.Hide(); // 或者 this.Close(); 如果你想完全释放它
         }
 
+        // 注释掉模拟语音识别相关方法
+        /*
         // 启动模拟语音识别
         public void StartSimulation()
         {
@@ -178,6 +185,7 @@ namespace AikitWpfDemo
             _displayTimer.Stop();
             ShowNextCommand();
         }
+        */
 
         // 当语音被识别时，从你的主应用程序逻辑调用此方法
         public void UpdateText(string newText)
@@ -193,16 +201,18 @@ namespace AikitWpfDemo
             this.Show();
             this.Activate(); // 置于顶层
             
-            // 启动模拟
-            StartSimulation();
+            // 移除模拟启动
+            // StartSimulation();
         }
 
-        // 添加一个自定义的测试方法，在主窗口中可以调用
+        // 修改测试方法以适应实时语音识别
         public void StartDemoMode()
         {
+            RecognizedText = "正在等待语音输入...";
             this.Show();
             this.Activate();
-            StartSimulation();
+            // 移除模拟启动
+            // StartSimulation();
         }
 
         // INotifyPropertyChanged 实现

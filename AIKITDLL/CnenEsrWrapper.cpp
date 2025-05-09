@@ -5,6 +5,7 @@
 #include <process.h>
 #include <conio.h>
 #include <errno.h>
+#include <mutex> // 添加互斥锁
 
 // 定义事件类型常量
 enum {
@@ -14,6 +15,14 @@ enum {
     EVT_TOTAL
 };
 
+// ESR结果状态定义
+enum ESR_STATUS {
+    ESR_STATUS_NONE = 0,      // 无结果
+    ESR_STATUS_SUCCESS = 1,   // 识别成功
+    ESR_STATUS_FAILED = 2,    // 识别失败
+    ESR_STATUS_PROCESSING = 3 // 正在处理
+};
+
 // 事件句柄
 static HANDLE events[EVT_TOTAL] = { NULL, NULL, NULL };
 
@@ -21,6 +30,10 @@ static HANDLE events[EVT_TOTAL] = { NULL, NULL, NULL };
 namespace AIKITDLL {
     std::atomic<int> esrResultFlag(0);
     std::string lastEsrResult;
+    std::atomic<int> esrStatus(ESR_STATUS_NONE); // 添加ESR状态
+    std::string lastEsrKeywordResult;            // 识别到的命令词结果
+    std::string lastEsrErrorInfo;                // 错误信息
+    std::mutex esrResultMutex;                   // 结果保护互斥锁
 }
 
 // 显示操作提示
@@ -73,6 +86,61 @@ static HANDLE start_helper_thread()
     HANDLE hdl;
     hdl = (HANDLE)_beginthreadex(NULL, 0, helper_thread_proc, NULL, 0, NULL);
     return hdl;
+}
+
+// 解析ESR回调结果中的命令词
+static void parseEsrKeyword(const char* jsonResult) 
+{
+    if (!jsonResult || strlen(jsonResult) == 0) {
+        return;
+    }
+
+    // 简单示例：提取命令词文本，实际应用中建议使用JSON解析库
+    std::string result(jsonResult);
+    
+    // 检查是否包含"w":"后面的内容
+    size_t wPos = result.find("\"w\":\"");
+    if (wPos != std::string::npos) {
+        wPos += 5; // 跳过"w":"
+        size_t endPos = result.find("\"", wPos);
+        if (endPos != std::string::npos) {
+            std::string keyword = result.substr(wPos, endPos - wPos);
+            
+            // 更新结果
+            std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+            AIKITDLL::lastEsrKeywordResult = keyword;
+            AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
+            AIKITDLL::LogInfo("提取到命令词: %s", keyword.c_str());
+        }
+    }
+}
+
+// ESR回调结果处理函数
+void processEsrCallback(const char* key, const char* value) 
+{
+    if (!key || !value) {
+        return;
+    }
+
+    AIKITDLL::LogInfo("ESR回调: key:%s\tvalue:%s", key, value);
+
+    // 处理不同类型的回调
+    if (strcmp(key, "readable") == 0) {
+        // 处理可读结果
+        parseEsrKeyword(value);
+    }
+    else if (strcmp(key, "plain") == 0) {
+        // 直接文本结果
+        std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+        AIKITDLL::lastEsrKeywordResult = value;
+        AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
+    }
+    else if (strcmp(key, "error") == 0) {
+        // 错误信息
+        std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+        AIKITDLL::lastEsrErrorInfo = value;
+        AIKITDLL::esrStatus = ESR_STATUS_FAILED;
+    }
 }
 
 // 从麦克风获取ESR结果的实现
@@ -187,27 +255,6 @@ int CnenEsrInit()
     GetCurrentDirectoryA(MAX_PATH, currentDir);
     AIKITDLL::LogInfo("当前工作目录: %s", currentDir);
     
-    // 检查FSA文件是否存在
-    FILE* fsaFile = nullptr;
-    errno_t err = fopen_s(&fsaFile, ".\\resource\\cnenesr\\fsa\\cn_fsa.txt", "r");
-    if (err != 0 || fsaFile == nullptr) {
-        AIKITDLL::LogWarning("没有找到中文FSA文件: .\\resource\\cnenesr\\fsa\\cn_fsa.txt");
-        
-        // 尝试查找英文FSA文件
-        err = fopen_s(&fsaFile, ".\\resource\\cnenesr\\fsa\\en_fsa.txt", "r");
-        if (err != 0 || fsaFile == nullptr) {
-            AIKITDLL::LogError("无法找到任何FSA文件，请检查资源路径");
-            return -1;
-        }
-        AIKITDLL::LogInfo("找到英文FSA文件");
-    } else {
-        AIKITDLL::LogInfo("找到中文FSA文件");
-    }
-    
-    if (fsaFile) {
-        fclose(fsaFile);
-    }
-    
     // 初始化引擎
     AIKIT::AIKIT_ParamBuilder* engine_paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
     if (engine_paramBuilder == nullptr) {
@@ -316,10 +363,15 @@ void TestEsr(const AIKIT_Callbacks& cbs)
     try {
         // 注册回调
         int ret = 0;
+        
+        // 设置状态为处理中
+        AIKITDLL::esrStatus = ESR_STATUS_PROCESSING;
+        
         AIKITDLL::LogInfo("正在注册ESR能力回调...");
         ret = AIKIT::AIKIT_RegisterAbilityCallback(ESR_ABILITY, cbs);
         if (ret != 0) {
             AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
+            AIKITDLL::esrStatus = ESR_STATUS_FAILED;
             return;
         }
         AIKITDLL::LogInfo("注册能力回调成功");
@@ -327,6 +379,7 @@ void TestEsr(const AIKIT_Callbacks& cbs)
          ret = CnenEsrInit();
         if (ret != 0) {
             AIKITDLL::LogError("ESR初始化失败，错误码: %d", ret);
+            AIKITDLL::esrStatus = ESR_STATUS_FAILED;
             goto exit;
         }
         
@@ -336,13 +389,16 @@ void TestEsr(const AIKIT_Callbacks& cbs)
         ret = EsrFromFile(audioFilePath);
         if (ret != 0 && ret != ESR_HAS_RESULT) {
             AIKITDLL::LogError("文件处理失败，错误码: %d", ret);
+            AIKITDLL::esrStatus = ESR_STATUS_FAILED;
         }
     }
     catch (const std::exception& e) {
         AIKITDLL::LogError("发生异常: %s", e.what());
+        AIKITDLL::esrStatus = ESR_STATUS_FAILED;
     }
     catch (...) {
         AIKITDLL::LogError("发生未知异常");
+        AIKITDLL::esrStatus = ESR_STATUS_FAILED;
     }
 
 exit:
@@ -350,4 +406,40 @@ exit:
     CnenEsrUninit();
     
     AIKITDLL::LogInfo("======================= ESR 测试结束 ===========================");
+}
+
+// 获取ESR状态
+extern "C" __declspec(dllexport) int GetEsrStatus()
+{
+    return AIKITDLL::esrStatus.load();
+}
+
+// 重置ESR状态
+extern "C" __declspec(dllexport) void ResetEsrStatus()
+{
+    std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+    AIKITDLL::esrStatus = ESR_STATUS_NONE;
+    AIKITDLL::lastEsrKeywordResult.clear();
+    AIKITDLL::lastEsrErrorInfo.clear();
+}
+
+// 获取ESR命令词结果
+extern "C" __declspec(dllexport) const char* GetEsrKeywordResult()
+{
+    std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+    // 返回静态缓冲区，确保字符串不会在函数返回后被销毁
+    static char resultBuffer[1024] = { 0 };
+    memset(resultBuffer, 0, sizeof(resultBuffer));
+    strcpy_s(resultBuffer, sizeof(resultBuffer), AIKITDLL::lastEsrKeywordResult.c_str());
+    return resultBuffer;
+}
+
+// 获取ESR错误信息
+extern "C" __declspec(dllexport) const char* GetEsrErrorInfo()
+{
+    std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+    static char errorBuffer[1024] = { 0 };
+    memset(errorBuffer, 0, sizeof(errorBuffer));
+    strcpy_s(errorBuffer, sizeof(errorBuffer), AIKITDLL::lastEsrErrorInfo.c_str());
+    return errorBuffer;
 }

@@ -254,9 +254,6 @@ namespace AIKITDLL {
     }
 }
 
-// 使用AIKITDLL命名空间中的fin变量，删除全局变量定义
-// FILE* fin = nullptr;
-
 int RunFullTest()
 {
     /**
@@ -321,7 +318,8 @@ int RunFullTest()
     AIKITDLL::lastResult = "INFO: Voice wake-up module initialized successfully.";
     /*AIKITDLL::LogDebug("进入TestIvw70");
     TestIvw70(cbs);*/
-    /*AIKITDLL::LogDebug("进入TestIvw70");
+
+    /*AIKITDLL::LogDebug("进入TestIvw70Microphone");
     TestIvw70Microphone(cbs);*/
 
     AIKITDLL::LogDebug("进入TestEsr");

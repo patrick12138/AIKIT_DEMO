@@ -515,6 +515,7 @@ void TestIvw70(const AIKIT_Callbacks& cbs)
 
 	AIKITDLL::LogInfo("======================= IVW70 测试结束 ===========================");
 }
+
 void TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 {
 	AIKIT::AIKIT_ParamBuilder* paramBuilder = nullptr;
