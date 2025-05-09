@@ -47,7 +47,7 @@
                 <TextBlock x:Name="TxtLog" TextWrapping="Wrap" Margin="5"/>
             </ScrollViewer>
         </Border>
-
+        <TextBlock Text="Main Application Window. Voice popup will appear." HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <!-- 底部按钮区 -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10" HorizontalAlignment="Center">
             <Button x:Name="BtnInitSdk" Content="初始化SDK" Width="100" Margin="5" Click="BtnInitSdk_Click"/>

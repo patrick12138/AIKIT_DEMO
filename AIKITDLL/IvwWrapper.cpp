@@ -545,7 +545,7 @@ void TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 	// 使用麦克风进行测试
 	AIKITDLL::LogInfo("开始从麦克风测试唤醒功能");
 
-	ret = AIKITDLL::ivw_microphone(IVW_ABILITY, 900, 5000); // 10秒超时
+	ret = AIKITDLL::ivw_microphone(IVW_ABILITY, 900, 10000); // 10秒超时
 
 	if (ret == 0) {
 		AIKITDLL::LogInfo("麦克风唤醒测试成功，检测到唤醒词");

@@ -15,12 +15,15 @@
 // 添加宏定义
 #define FRAME_LEN 640 // 16k采样率的16bit音频，一帧的大小为640B, 时长20ms
 
+// 全局变量声明
+int wakeupFlag = 0; // 唤醒状态标志，0表示未唤醒，1表示已唤醒
 namespace AIKITDLL {
     bool isInitialized = true;
     std::string lastResult;
     std::atomic_bool wakeupDetected(false);  // 是否检测到唤醒词
     std::mutex logMutex; // 用于日志写入的互斥锁
     FILE* fin = nullptr;
+    std::string wakeupInfoString; // 存储唤醒详细信息的字符串
     // 获取当前时间的字符串
     std::string GetCurrentTimeString() {
         time_t now = time(nullptr);
@@ -113,6 +116,7 @@ namespace AIKITDLL {
             if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
                 wakeupDetected = true;
                 wakeupFlag = 1;  // Setting the global flag
+                wakeupInfoString = resultText; // 保存唤醒词信息到全局变量
                 LogInfo("唤醒词检测到: %s", resultText.c_str());
             }
             
@@ -128,7 +132,6 @@ namespace AIKITDLL {
             }
         }
     }
-    extern FILE* fin;
 
     void OnEvent(AIKIT_HANDLE* handle, AIKIT_EVENT eventType, const AIKIT_OutputEvent* eventValue) {
         lastResult = "事件: " + std::to_string(eventType);
@@ -251,8 +254,8 @@ namespace AIKITDLL {
     }
 }
 
-// 定义变量，解决"fin: 未声明的标识符"错误
-FILE* fin = nullptr;
+// 使用AIKITDLL命名空间中的fin变量，删除全局变量定义
+// FILE* fin = nullptr;
 
 int RunFullTest()
 {
@@ -316,16 +319,16 @@ int RunFullTest()
     }
     AIKITDLL::LogDebug("INFO: Voice wake-up 初始化成功");
     AIKITDLL::lastResult = "INFO: Voice wake-up module initialized successfully.";
-    //AIKITDLL::LogDebug("进入TestIvw70");
-    //TestIvw70(cbs);
-    AIKITDLL::LogDebug("进入TestIvw70");
-    TestIvw70Microphone(cbs);
-    //AIKITDLL::LogDebug("进入TestEsr");
-    //TestEsr(cbs);
+  /*  AIKITDLL::LogDebug("进入TestIvw70");
+    TestIvw70(cbs);*/
+    /*AIKITDLL::LogDebug("进入TestIvw70");
+    TestIvw70Microphone(cbs);*/
+    AIKITDLL::LogDebug("进入TestEsr");
+    TestEsr(cbs);
     // 确保关闭文件资源
-    if (fin != nullptr) {
-        fclose(fin);
-        fin = nullptr;
+    if (AIKITDLL::fin != nullptr) {
+        fclose(AIKITDLL::fin);
+        AIKITDLL::fin = nullptr;
     }
 
     // 正常退出流程
@@ -336,8 +339,6 @@ int RunFullTest()
     return 0;
 }
 
-extern FILE* fin;
-
 // 获取最后的结果或错误信息
 #ifdef __cplusplus
 extern "C" {
@@ -345,6 +346,43 @@ extern "C" {
 AIKITDLL_API const char* GetLastResult()
 {
     return AIKITDLL::lastResult.c_str();
+}
+#ifdef __cplusplus
+}
+#endif
+
+// 获取唤醒词状态
+#ifdef __cplusplus
+extern "C" {
+#endif
+AIKITDLL_API int GetWakeupStatus()
+{
+    return AIKITDLL::wakeupFlag;
+}
+#ifdef __cplusplus
+}
+#endif
+
+// 重置唤醒词状态
+#ifdef __cplusplus
+extern "C" {
+#endif
+AIKITDLL_API void ResetWakeupStatus()
+{
+    AIKITDLL::wakeupFlag = 0;
+    AIKITDLL::wakeupDetected = false;
+}
+#ifdef __cplusplus
+}
+#endif
+
+// 获取唤醒词详细信息
+#ifdef __cplusplus
+extern "C" {
+#endif
+AIKITDLL_API const char* GetWakeupInfoString()
+{
+    return AIKITDLL::wakeupInfoString.c_str();
 }
 #ifdef __cplusplus
 }

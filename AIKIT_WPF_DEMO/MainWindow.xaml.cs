@@ -12,13 +12,65 @@ namespace AikitWpfDemo
     {
         private CancellationTokenSource _cts;
         private bool _engineInitialized = false;
-
+        private CortanaLikePopup _cortanaPopup;
         public MainWindow()
         {
             InitializeComponent();
+            _cortanaPopup = new CortanaLikePopup();
             _cts = new CancellationTokenSource();
         }
+        private async void SimulateVoiceInteraction()
+        {
+            // 1. Simulate Wake Word Detected
+            await System.Threading.Tasks.Task.Delay(2000); // Wait 2 seconds
+            Application.Current.Dispatcher.Invoke(() => // Ensure UI updates on UI thread
+            {
+                _cortanaPopup.UpdateText("Listening..."); // Or keep the default text
+                _cortanaPopup.ShowPopup();
+            });
 
+
+            // 2. Simulate "weather in london" being spoken
+            await System.Threading.Tasks.Task.Delay(3000); // Wait 3 more seconds
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                _cortanaPopup.UpdateText("weather in london");
+            });
+
+            // 3. Simulate another command (popup stays open)
+            await System.Threading.Tasks.Task.Delay(4000);
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                _cortanaPopup.UpdateText("what time is it?");
+            });
+
+            // The popup will remain open until the 'X' is clicked.
+            // You would call _cortanaPopup.Hide() or _cortanaPopup.Close()
+            // when your voice assistant determines the interaction is over.
+        }
+
+        // You would call this when your wake word is detected
+        private void OnWakeWordDetected()
+        {
+            _cortanaPopup.UpdateText("Listening..."); // Or whatever initial text you want
+            _cortanaPopup.ShowPopup();
+        }
+
+        // You would call this when your speech recognizer gets a result
+        private void OnSpeechRecognized(string recognizedSpeech)
+        {
+            _cortanaPopup.UpdateText(recognizedSpeech);
+            // Add logic here to process the command
+        }
+
+        // If you want to close the popup programmatically
+        private void EndInteraction()
+        {
+            _cortanaPopup.Hide();
+        }
+
+        // Ensure the popup is closed when the main window closes
+ 
         // 记录日志到界面
         private void LogMessage(string message)
         {
@@ -258,6 +310,7 @@ namespace AikitWpfDemo
                 if (_engineInitialized)
                 {
                     NativeMethods.Ivw70Uninit();
+                    _cortanaPopup?.Close();
                 }
             }
             catch
@@ -274,12 +327,32 @@ namespace AikitWpfDemo
                 // 清空日志，准备显示新的测试信息
                 TxtLog.Text = string.Empty;
                 LogMessage("开始执行完整测试...");
+                
+                // 重置唤醒状态，避免误报
+                NativeMethods.ResetWakeupStatus();
+                
+                // 执行测试
                 int result = NativeMethods.RunFullTest();
+                
                 // 禁用按钮，防止重复点击
                 BtnRunFullTest.IsEnabled = false;
+                
                 // 获取并记录详细结果信息
                 string detailedResult = NativeMethods.GetLastResultString();
                 LogMessage(detailedResult);
+
+                // 检查唤醒状态 - 这是关键改动
+                if (NativeMethods.GetWakeupStatus() == 1)
+                {
+                    string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
+                    LogMessage($"检测到唤醒词: {wakeupInfo}");
+                    
+                    // 弹窗显示唤醒成功
+                    MessageBox.Show($"检测到唤醒词！\n详细信息: {wakeupInfo}", "唤醒成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    
+                    // 重置唤醒状态，避免重复弹窗
+                    NativeMethods.ResetWakeupStatus();
+                }
 
                 if (result == 0)
                 {
@@ -295,32 +368,6 @@ namespace AikitWpfDemo
 
                 // 重新启用按钮
                 BtnRunFullTest.IsEnabled = true;
-                //// 在后台线程执行测试，避免UI冻结
-                //Task.Run(() =>
-                //{
-                //    try
-                //    {
-                        
-                        
-                //        // 在UI线程上更新结果
-                //        Dispatcher.Invoke(() =>
-                //        {
-                           
-                //        });
-                //    }
-                //    catch (Exception ex)
-                //    {
-                //        // 在UI线程上处理异常
-                //        Dispatcher.Invoke(() =>
-                //        {
-                //            LogMessage($"执行测试时发生异常: {ex.Message}");
-                //            MessageBox.Show($"执行测试时发生异常: {ex.Message}", "异常", MessageBoxButton.OK, MessageBoxImage.Error);
-                            
-                //            // 重新启用按钮
-                //            BtnRunFullTest.IsEnabled = true;
-                //        });
-                //    }
-                //});
             }
             catch (Exception ex)
             {
