@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -15,13 +16,18 @@ namespace AikitWpfDemo
         private bool _engineInitialized = false;
         private CortanaLikePopup _cortanaPopup;
 
-        // 添加ESR命令词监控定时器
-        private DispatcherTimer _esrCheckTimer;
-        private int _lastEsrStatus = 0;
-
-        // 添加实时语音识别监控定时器
-        private DispatcherTimer _speechRecognitionTimer;
-        private string _lastSpeechText = string.Empty;
+        // 添加各种结果格式的监控定时器
+        private DispatcherTimer _resultMonitorTimer;
+        
+        // 缓存各种类型的结果
+        private string _lastPgsResult = string.Empty;
+        private string _lastHtkResult = string.Empty;
+        private string _lastPlainResult = string.Empty;
+        private string _lastVadResult = string.Empty;
+        private string _lastReadableResult = string.Empty;
+        
+        // 结果合并展示标志
+        private bool _mergeResults = true; // 是否将所有结果合并在一起显示
 
         public MainWindow()
         {
@@ -29,127 +35,161 @@ namespace AikitWpfDemo
             _cortanaPopup = new CortanaLikePopup();
             _cts = new CancellationTokenSource();
 
-            // 初始化命令词监控定时器
-            _esrCheckTimer = new DispatcherTimer();
-            _esrCheckTimer.Interval = TimeSpan.FromMilliseconds(300); // 每300ms检查一次
-            _esrCheckTimer.Tick += EsrCheckTimer_Tick;
-
-            // 初始化实时语音识别监控定时器
-            _speechRecognitionTimer = new DispatcherTimer();
-            _speechRecognitionTimer.Interval = TimeSpan.FromMilliseconds(100); // 每100ms检查一次
-            _speechRecognitionTimer.Tick += SpeechRecognitionTimer_Tick;
-
-            // 窗口加载后自动启动监控
-            //Loaded += (s, e) =>
-            //{
-            //    LogMessage("启动实时语音识别监控...");
-            //    _speechRecognitionTimer.Start();
-
-            //    LogMessage("自动开始执行完整测试...");
-            //    // 重置唤醒状态，避免误报
-            //    NativeMethods.ResetWakeupStatus();
-
-            //    // 执行测试
-            //    int result = NativeMethods.RunFullTest();
-
-            //    // 获取并记录详细结果信息
-            //    string detailedResult = NativeMethods.GetLastResultString();
-            //    LogMessage(detailedResult);
-
-            //    // 检查唤醒状态
-            //    if (NativeMethods.GetWakeupStatus() == 1)
-            //    {
-            //        string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
-            //        LogMessage($"检测到唤醒词: {wakeupInfo}");
-            //        OnWakeWordDetected();
-            //    }
-            //};
+            // 初始化识别结果监控定时器
+            _resultMonitorTimer = new DispatcherTimer();
+            _resultMonitorTimer.Interval = TimeSpan.FromMilliseconds(50); // 每50ms检查一次，保证实时性
+            _resultMonitorTimer.Tick += ResultMonitorTimer_Tick;
         }
 
-        // 实时语音识别监控定时器事件处理
-        private void SpeechRecognitionTimer_Tick(object sender, EventArgs e)
-        {
-            // 获取实时语音识别文本
-            string currentText = NativeMethods.GetSpeechRecognitionTextString();
-            if (!string.IsNullOrEmpty(currentText) && currentText != _lastSpeechText)
-            {
-                // 更新缓存的最后一次文本
-                _lastSpeechText = currentText;
-
-                // 显示在日志中
-                LogMessage($"语音识别结果: {currentText}");
-
-                // 显示在弹窗中
-                //_cortanaPopup.UpdateText(currentText);
-                //if (!_cortanaPopup.IsVisible)
-                //{
-                //    _cortanaPopup.ShowPopup();
-                //}
-            }
-            //try
-            //{
-            //    // 检查是否有新的语音识别结果
-            //    if (NativeMethods.HasNewSpeechResult())
-            //    {
-                    
-            //    }
-            //}
-            //catch (Exception ex)
-            //{
-            //    LogMessage($"实时语音识别监控异常: {ex.Message}");
-            //}
-        }
-
-        // ESR命令词监控定时器事件处理
-        private void EsrCheckTimer_Tick(object sender, EventArgs e)
+        // 识别结果监控定时器事件处理
+        private void ResultMonitorTimer_Tick(object sender, EventArgs e)
         {
             try
             {
-                // 获取当前ESR状态
-                int currentStatus = NativeMethods.GetEsrStatus();
-
-                // 状态变化时进行处理
-                if (currentStatus != _lastEsrStatus)
-                {
-                    _lastEsrStatus = currentStatus;
-
-                    switch (currentStatus)
-                    {
-                        case 1: // ESR_STATUS_SUCCESS
-                            // 获取识别到的命令词
-                            string keyword = NativeMethods.GetEsrKeywordResultString();
-                            LogMessage($"检测到命令词: {keyword}");
-
-                            // 显示弹窗并更新文本
-                            _cortanaPopup.UpdateText(keyword);
-                            _cortanaPopup.ShowPopup();
-
-                            // 重置ESR状态，避免重复触发
-                            NativeMethods.ResetEsrStatus();
-                            break;
-
-                        case 2: // ESR_STATUS_FAILED
-                            // 获取错误信息
-                            string errorInfo = NativeMethods.GetEsrErrorInfoString();
-                            LogMessage($"命令词识别失败: {errorInfo}");
-
-                            // 可选：显示错误信息弹窗
-                            // _cortanaPopup.UpdateText($"识别失败: {errorInfo}");
-                            // _cortanaPopup.ShowPopup();
-
-                            // 重置ESR状态
-                            NativeMethods.ResetEsrStatus();
-                            break;
-
-                        case 3: // ESR_STATUS_PROCESSING
-                            LogMessage("正在处理语音...");
-                            break;
-                    }
-                }
+                CheckAndProcessNewResults();
             }
             catch (Exception ex)
             {
-                LogMessage($"ESR监控异常: {ex.Message}");
+                LogMessage($"识别结果监控异常: {ex.Message}");
+            }
+        }
+
+        // 检查和处理所有类型的新结果
+        private void CheckAndProcessNewResults()
+        {
+            bool hasAnyNewResult = false;
+            StringBuilder resultBuilder = null;
+            
+            if (_mergeResults)
+            {
+                resultBuilder = new StringBuilder();
+            }
+
+            // 检查pgs格式结果
+            if (NativeMethods.HasNewPgsResult())
+            {
+                string currentResult = NativeMethods.GetPgsResultString();
+                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastPgsResult)
+                {
+                    _lastPgsResult = currentResult;
+                    hasAnyNewResult = true;
+                    
+                    if (_mergeResults)
+                    {
+                        resultBuilder.AppendLine(currentResult);
+                    }
+                    else
+                    {
+                        LogMessage(currentResult);
+                    }
+                    
+                    // 更新弹窗显示PGS实时结果（取最后一行，通常是最新内容）
+                    string[] lines = currentResult.Split('\n');
+                    if (lines.Length > 0)
+                    {
+                        string lastLine = lines[lines.Length - 1];
+                        if (lastLine.StartsWith("pgs： "))
+                        {
+                            _cortanaPopup.UpdateText(lastLine.Substring(5)); // 去掉"pgs： "前缀
+                        }
+                        else
+                        {
+                            _cortanaPopup.UpdateText(lastLine);
+                        }
+                    }
+                }
+            }
+
+            // 检查htk格式结果
+            if (NativeMethods.HasNewHtkResult())
+            {
+                string currentResult = NativeMethods.GetHtkResultString();
+                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastHtkResult)
+                {
+                    _lastHtkResult = currentResult;
+                    hasAnyNewResult = true;
+                    
+                    if (_mergeResults)
+                    {
+                        resultBuilder.AppendLine(currentResult);
+                    }
+                    else
+                    {
+                        LogMessage(currentResult);
+                    }
+                }
+            }
+
+            // 检查plain格式结果
+            if (NativeMethods.HasNewPlainResult())
+            {
+                string currentResult = NativeMethods.GetPlainResultString();
+                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastPlainResult)
+                {
+                    _lastPlainResult = currentResult;
+                    hasAnyNewResult = true;
+                    
+                    if (_mergeResults)
+                    {
+                        resultBuilder.AppendLine(currentResult);
+                    }
+                    else
+                    {
+                        LogMessage(currentResult);
+                    }
+                }
+            }
+
+            // 检查vad格式结果
+            if (NativeMethods.HasNewVadResult())
+            {
+                string currentResult = NativeMethods.GetVadResultString();
+                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastVadResult)
+                {
+                    _lastVadResult = currentResult;
+                    hasAnyNewResult = true;
+                    
+                    if (_mergeResults)
+                    {
+                        resultBuilder.AppendLine(currentResult);
+                    }
+                    else
+                    {
+                        LogMessage(currentResult);
+                    }
+                }
+            }
+
+            // 检查readable格式结果
+            if (NativeMethods.HasNewReadableResult())
+            {
+                string currentResult = NativeMethods.GetReadableResultString();
+                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastReadableResult)
+                {
+                    _lastReadableResult = currentResult;
+                    hasAnyNewResult = true;
+                    
+                    if (_mergeResults)
+                    {
+                        resultBuilder.AppendLine(currentResult);
+                    }
+                    else
+                    {
+                        LogMessage(currentResult);
+                    }
+                }
+            }
+
+            // 如果有新结果且设置为合并显示，则一次性输出所有结果
+            if (hasAnyNewResult && _mergeResults && resultBuilder != null && resultBuilder.Length > 0)
+            {
+                LogMessage(resultBuilder.ToString().TrimEnd());
+            }
+
+            // 确保弹窗可见
+            if (hasAnyNewResult && !_cortanaPopup.IsVisible)
+            {
+                _cortanaPopup.ShowPopup();
             }
         }
 
@@ -176,27 +216,14 @@ namespace AikitWpfDemo
                 // 取消任何正在进行的操作
                 _cts?.Cancel();
 
-                // 停止ESR命令词监控定时器
-                if (_esrCheckTimer != null && _esrCheckTimer.IsEnabled)
+                // 停止识别结果监控定时器
+                if (_resultMonitorTimer != null && _resultMonitorTimer.IsEnabled)
                 {
-                    _esrCheckTimer.Stop();
+                    _resultMonitorTimer.Stop();
                 }
 
-                // 停止实时语音识别监控定时器
-                if (_speechRecognitionTimer != null && _speechRecognitionTimer.IsEnabled)
-                {
-                    _speechRecognitionTimer.Stop();
-                }
-
-                // 清空语音识别缓冲区
-                //NativeMethods.ClearSpeechRecognitionBuffer();
-
-                // 确保资源被清理
-                if (_engineInitialized)
-                {
-                    NativeMethods.Ivw70Uninit();
-                }
-
+                // 清空所有结果缓冲区
+                NativeMethods.ClearAllResultBuffers();
                 // 关闭弹窗
                 _cortanaPopup?.Close();
             }
@@ -212,133 +239,130 @@ namespace AikitWpfDemo
         {
             try
             {
-                // 清空日志，准备显示新的测试信息
-                TxtLog.Text = string.Empty;
-                LogMessage("开始执行完整测试...");
+            // 清空日志，准备显示新的测试信息
+            TxtLog.Text = string.Empty;
+            LogMessage("开始执行完整测试...");
 
-                // 清空缓存的上一次识别文本
-                _lastSpeechText = string.Empty;
+            // 清空各种结果缓存
+            _lastPgsResult = string.Empty;
+            _lastHtkResult = string.Empty;
+            _lastPlainResult = string.Empty;
+            _lastVadResult = string.Empty;
+            _lastReadableResult = string.Empty;
+            
+            // 重置状态，避免误报
+            NativeMethods.ResetWakeupStatus();
+            NativeMethods.ResetEsrStatus();
+            //NativeMethods.ClearAllResultBuffers();
+
+            // 启动识别结果监控定时器
+            if (!_resultMonitorTimer.IsEnabled)
+            {
+                _resultMonitorTimer.Start();
+                LogMessage("已启动实时识别结果监控");
+            }
+
+            // 禁用按钮，防止重复点击
+            BtnRunFullTest.IsEnabled = false;
+
+            // 执行测试
+            int result = NativeMethods.RunFullTest();
+
+            // 获取并记录详细结果信息
+            string detailedResult = NativeMethods.GetLastResultString();
+            LogMessage($"测试启动结果: {detailedResult}");
+
+            // 检查唤醒状态 - 只有唤醒成功才显示弹窗
+            if (NativeMethods.GetWakeupStatus() == 1)
+            {
+                string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
+                LogMessage($"检测到唤醒词: {wakeupInfo}");
                 
-                // 重置状态，避免误报
-                NativeMethods.ResetWakeupStatus();
-                NativeMethods.ResetEsrStatus();
-                //NativeMethods.ClearSpeechRecognitionBuffer();
-
-                // 启动ESR命令词监控定时器
-                if (!_esrCheckTimer.IsEnabled)
-                {
-                    _esrCheckTimer.Start();
-                    LogMessage("已启动命令词监控");
-                }
-
-                // 启动实时语音识别监控定时器
-                if (!_speechRecognitionTimer.IsEnabled)
-                {
-                    _speechRecognitionTimer.Start();
-                    LogMessage("已启动实时语音识别监控");
-                }
-
-                // 显示弹窗，等待实时语音输入
-                _cortanaPopup.UpdateText("正在等待语音输入...");
+                // 唤醒成功后打开弹窗，等待命令词
+                _cortanaPopup.UpdateText("正在等待命令...");
                 _cortanaPopup.Show();
                 _cortanaPopup.Activate();
-
-                // 执行测试
-                int result = NativeMethods.RunFullTest();
-
-                // 禁用按钮，防止重复点击
-                BtnRunFullTest.IsEnabled = false;
-
-                // 获取并记录详细结果信息
-                string detailedResult = NativeMethods.GetLastResultString();
-                LogMessage(detailedResult);
-
-                // 检查唤醒状态
-                if (NativeMethods.GetWakeupStatus() == 1)
-                {
-                    string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
-                    LogMessage($"检测到唤醒词: {wakeupInfo}");
-                    
-                    // 重置唤醒状态，避免重复弹窗
-                    NativeMethods.ResetWakeupStatus();
-                }
-
-                if (result == 0)
-                {
-                    LogMessage("测试完成，执行成功！");
-                }
-                else
-                {
-                    LogMessage($"测试失败，错误码: {result}");
-                }
-
-                // 重新启用按钮
-                BtnRunFullTest.IsEnabled = true;
                 
-                LogMessage("已启动实时语音识别，等待用户输入...");
+                // 重置唤醒状态，避免重复弹窗
+                NativeMethods.ResetWakeupStatus();
+                
+                LogMessage("已启动实时语音识别，等待用户命令...");
+            }
+            else
+            {
+                LogMessage("未检测到唤醒词，弹窗未显示");
+            }
+
+            if (result == 0)
+            {
+                LogMessage("测试完成，执行成功！");
+            }
+            else
+            {
+                LogMessage($"测试失败，错误码: {result}");
+            }
+
+            // 重新启用按钮
+            BtnRunFullTest.IsEnabled = true;
             }
             catch (Exception ex)
             {
-                LogMessage($"启动测试线程时发生异常: {ex.Message}");
-                MessageBox.Show($"启动测试时发生异常: {ex.Message}", "异常", MessageBoxButton.OK, MessageBoxImage.Error);
-                BtnRunFullTest.IsEnabled = true;
-                
-                // 确保停止所有监控定时器
-                if (_esrCheckTimer != null && _esrCheckTimer.IsEnabled)
-                {
-                    _esrCheckTimer.Stop();
-                }
-                if (_speechRecognitionTimer != null && _speechRecognitionTimer.IsEnabled)
-                {
-                    _speechRecognitionTimer.Stop();
-                }
+            LogMessage($"启动测试线程时发生异常: {ex.Message}");
+            MessageBox.Show($"启动测试时发生异常: {ex.Message}", "异常", MessageBoxButton.OK, MessageBoxImage.Error);
+            BtnRunFullTest.IsEnabled = true;
+            
+            // 确保停止所有监控定时器
+            if (_resultMonitorTimer != null && _resultMonitorTimer.IsEnabled)
+            {
+                _resultMonitorTimer.Stop();
+            }
             }
         }
 
-        private void BtnRunTest_Click(object sender, RoutedEventArgs e)
-        {
-
-        }
-        
-        // 测试CortanaLikePopup弹窗 - 显示实时语音识别结果
+        // 测试弹窗按钮 - 显示实时语音识别结果
         private void BtnTestPopup_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // 清空缓存的上一次识别文本
-                _lastSpeechText = string.Empty;
+                // 切换结果合并展示模式
+                _mergeResults = !_mergeResults;
+                LogMessage($"已{(_mergeResults ? "启用" : "禁用")}结果合并显示模式");
                 
-                // 清空语音识别缓冲区
-                //NativeMethods.ClearSpeechRecognitionBuffer();
-                
-                // 重置ESR状态
-                NativeMethods.ResetEsrStatus();
-                
-                // 启动ESR命令词监控定时器
-                if (!_esrCheckTimer.IsEnabled)
+                if (!_resultMonitorTimer.IsEnabled)
                 {
-                    _esrCheckTimer.Start();
-                    LogMessage("已启动命令词监控");
+                    // 如果定时器未启动，则启动所有监控功能
+                    
+                    // 清空各种结果缓存
+                    _lastPgsResult = string.Empty;
+                    _lastHtkResult = string.Empty;
+                    _lastPlainResult = string.Empty;
+                    _lastVadResult = string.Empty;
+                    _lastReadableResult = string.Empty;
+                    
+                    // 清空缓冲区
+                    NativeMethods.ClearAllResultBuffers();
+                    
+                    // 启动监控定时器
+                    _resultMonitorTimer.Start();
+                    LogMessage("已启动实时识别结果监控");
+                    
+                    // 显示弹窗
+                    _cortanaPopup.UpdateText("正在等待语音输入...");
+                    _cortanaPopup.Show();
+                    _cortanaPopup.Activate();
                 }
-                
-                // 启动实时语音识别监控定时器
-                if (!_speechRecognitionTimer.IsEnabled)
-                {
-                    _speechRecognitionTimer.Start();
-                    LogMessage("已启动实时语音识别监控");
-                }
-                
-                // 显示弹窗，等待实时语音输入
-                _cortanaPopup.UpdateText("正在等待语音输入...");
-                _cortanaPopup.Show();
-                _cortanaPopup.Activate();
-                
-                LogMessage("已启动实时语音识别，等待用户输入...");
             }
             catch (Exception ex)
             {
-                LogMessage($"启动实时语音识别出现异常: {ex.Message}");
+                LogMessage($"切换显示模式出现异常: {ex.Message}");
             }
+        }
+
+        // 供扩展使用的辅助方法
+        private void OnWakeWordDetected()
+        {
+            _cortanaPopup.UpdateText("正在聆听...");
+            _cortanaPopup.ShowPopup();
         }
     }
 }

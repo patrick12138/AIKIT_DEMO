@@ -8,7 +8,7 @@ namespace AikitWpfDemo
         // 指定DLL完整路径
         private const string DllPath = @"D:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
-        // DLL导入
+        // DLL导入 - 基础功能
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern int InitializeSDK(string appID, string apiKey, string apiSecret, string workDir);
 
@@ -18,22 +18,10 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetLastResult();
 
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern int Ivw70Init(string resourcePath);
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int Ivw70Uninit();
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int IvwFromMicrophone(int threshold);
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern int IvwFromFile(string audioFilePath, int threshold);
-
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int RunFullTest();
 
-        // 唤醒相关接口
+        // 获取唤醒状态相关接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int GetWakeupStatus();
 
@@ -43,7 +31,7 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetWakeupInfoString();
 
-        // ESR命令词识别相关接口 - 新增
+        // ESR命令词识别相关接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int GetEsrStatus();
 
@@ -56,16 +44,46 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetEsrErrorInfo();
 
-        // 新增 - 实时语音识别结果接口
+        // 各种格式命令词识别结果接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetSpeechRecognitionText();
+        public static extern IntPtr GetPgsResult();
 
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr GetHtkResult();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr GetPlainResult();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr GetVadResult();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr GetReadableResult();
+
+        // 新增 - 检查是否有新结果
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         [return: MarshalAs(UnmanagedType.I1)]  // 将C++ bool映射为C# bool
-        public static extern bool HasNewSpeechResult();
+        public static extern bool HasNewPgsResult();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ClearSpeechRecognitionBuffer();
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool HasNewHtkResult();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool HasNewPlainResult();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool HasNewVadResult();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool HasNewReadableResult();
+
+        // 新增 - 清空所有结果缓冲区
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ClearAllResultBuffers();
 
         // 辅助方法：获取上次结果字符串
         public static string GetLastResultString()
@@ -91,7 +109,7 @@ namespace AikitWpfDemo
             return "无唤醒信息";
         }
 
-        // 辅助方法：获取ESR命令词识别结果 - 新增
+        // 辅助方法：获取ESR命令词识别结果
         public static string GetEsrKeywordResultString()
         {
             IntPtr ptr = GetEsrKeywordResult();
@@ -103,7 +121,7 @@ namespace AikitWpfDemo
             return "无命令词识别结果";
         }
 
-        // 辅助方法：获取ESR错误信息 - 新增
+        // 辅助方法：获取ESR错误信息
         public static string GetEsrErrorInfoString()
         {
             IntPtr ptr = GetEsrErrorInfo();
@@ -115,10 +133,54 @@ namespace AikitWpfDemo
             return "无错误信息";
         }
 
-        // 辅助方法：获取实时语音识别文本
-        public static string GetSpeechRecognitionTextString()
+        // 新增 - 辅助方法：获取各种格式的识别结果字符串
+        public static string GetPgsResultString()
         {
-            IntPtr ptr = GetSpeechRecognitionText();
+            IntPtr ptr = GetPgsResult();
+            if (ptr != IntPtr.Zero)
+            {
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
+            }
+            return "";
+        }
+
+        public static string GetHtkResultString()
+        {
+            IntPtr ptr = GetHtkResult();
+            if (ptr != IntPtr.Zero)
+            {
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
+            }
+            return "";
+        }
+
+        public static string GetPlainResultString()
+        {
+            IntPtr ptr = GetPlainResult();
+            if (ptr != IntPtr.Zero)
+            {
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
+            }
+            return "";
+        }
+
+        public static string GetVadResultString()
+        {
+            IntPtr ptr = GetVadResult();
+            if (ptr != IntPtr.Zero)
+            {
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
+            }
+            return "";
+        }
+
+        public static string GetReadableResultString()
+        {
+            IntPtr ptr = GetReadableResult();
             if (ptr != IntPtr.Zero)
             {
                 string result = Marshal.PtrToStringAnsi(ptr);

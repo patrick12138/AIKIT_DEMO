@@ -315,15 +315,23 @@ int RunFullTest()
         return -1;
     }
     AIKITDLL::LogDebug("INFO: Voice wake-up 初始化成功");
-    AIKITDLL::lastResult = "INFO: Voice wake-up module initialized successfully.";
-    /*AIKITDLL::LogDebug("进入TestIvw70");
-    TestIvw70(cbs);*/
-
-    /*AIKITDLL::LogDebug("进入TestIvw70Microphone");
-    TestIvw70Microphone(cbs);*/
-
+    AIKITDLL::LogDebug("进入TestIvw70");
+    int ivwResult = 0;
+    do {
+        AIKITDLL::LogDebug("进入TestIvw70");
+        ivwResult = TestIvw70(cbs);
+        if (ivwResult != 0) {
+            AIKITDLL::LogWarning("TestIvw70 failed with code: %d, retrying...", ivwResult);
+            // 可选的: 等待一段时间再重试
+            Sleep(1000);  // 等待1秒再重试
+        }
+    } while (ivwResult != 0);
+    
+    AIKITDLL::LogInfo("TestIvw70 succeeded, proceeding to TestEsr");
+    
     AIKITDLL::LogDebug("进入TestEsr");
     TestEsr(cbs);
+    
     // 确保关闭文件资源
     if (AIKITDLL::fin != nullptr) {
         fclose(AIKITDLL::fin);
@@ -332,9 +340,9 @@ int RunFullTest()
 
     // 正常退出流程
     Ivw70Uninit();      //需要和Ivw70Init成对出现
-    AIKITDLL::lastResult = "INFO: Voice wake-up module uninitialized.";
+    AIKITDLL::lastResult = "INFO: 语音唤醒模块已卸载。";
     AIKIT::AIKIT_UnInit();
-    AIKITDLL::lastResult = "SUCCESS: Test completed successfully. All resources have been released.";
+    AIKITDLL::lastResult = "SUCCESS: 测试成功完成。所有资源已释放。";
     return 0;
 }
 

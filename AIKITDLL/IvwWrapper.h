@@ -34,9 +34,9 @@ extern "C" {
 	AIKITDLL_API void ResetWakeupStatus();
 
 	// 重置唤醒状态为未唤醒
-	AIKITDLL_API void TestIvw70(const AIKIT_Callbacks& cbs);
+	AIKITDLL_API int TestIvw70(const AIKIT_Callbacks& cbs);
 
-	AIKITDLL_API void TestIvw70Microphone(const AIKIT_Callbacks& cbs);
+	AIKITDLL_API int TestIvw70Microphone(const AIKIT_Callbacks& cbs);
 
 #ifdef __cplusplus
 }

@@ -210,17 +210,6 @@ namespace AIKITDLL {
 		}
 		LogInfo("引擎动态库加载检查通过");
 
-		//// 指定数据集
-		//LogInfo("正在指定唤醒数据集...");
-		//int index[] = { 0 };
-		//ret = AIKIT::AIKIT_SpecifyDataSet(abilityID, "key_word", index, 1);
-		//if (ret != 0) {
-		//	LogError("指定数据集失败，错误码: %d", ret);
-		//	lastResult = "指定数据集失败: " + std::to_string(ret);
-		//	return ret;
-		//}
-		//LogInfo("数据集指定成功");
-
 		// 创建参数构建器
 		AIKIT::AIKIT_ParamBuilder* paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
 		if (!paramBuilder) {
@@ -339,22 +328,6 @@ int Ivw70Init()
 	// 初始化阶段 - 检查参数并记录日志
 	AIKITDLL::LogInfo("开始语音唤醒引擎初始化...");
 
-	// if (!AIKITDLL::isInitialized) {
-	//     AIKITDLL::LogError("SDK未初始化，请先初始化SDK");
-	//     AIKITDLL::lastResult = "ERROR: SDK not initialized. Please initialize SDK first.";
-	//     return -1;
-	// }
-
-	// // 打印SDK初始化状态
-	// AIKITDLL::LogInfo("SDK初始化成功:%d", (int)&AIKITDLL::isInitialized);
-
-	// 确保引擎文件可访问
-	//if (!AIKITDLL::ValidateEngineResources(resourcePath)) {
-	//	AIKITDLL::LogError("部分引擎文件无法访问，请检查资源路径");
-	//	AIKITDLL::lastResult = "ERROR: Some engine files are not accessible. Please check resource path.";
-	//	// 不直接返回，尝试继续执行
-	//}
-
 	//// 确保引擎DLL被正确加载（关键修复步骤）
 	AIKITDLL::LogInfo("正在测试引擎加载...");
 	if (!AIKITDLL::EnsureEngineDllsLoaded()) {
@@ -363,41 +336,9 @@ int Ivw70Init()
 		return -1;
 	}
 
-	// 注册能力回调
-	//AIKIT_Callbacks cbs = { AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError };
-	//int ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
-	//if (ret != 0) {
-	//	const char* errDesc = AIKITDLL::GetErrorDescription(ret);
-	//	AIKITDLL::LogError("注册能力回调失败，错误码: %d, 描述: %s", ret, errDesc);
-	//	AIKITDLL::lastResult = "ERROR: Failed to register ability callback with code: " + std::to_string(ret) +
-	//		". " + std::string(errDesc);
-	//	return ret;
-	//}
-	//AIKITDLL::LogInfo("能力回调注册成功");
-
 	// 初始化引擎
 	AIKITDLL::LogInfo("正在初始化唤醒引擎...");
 
-	// 尝试使用引擎参数构建器
-	// AIKIT::AIKIT_ParamBuilder* engineParamBuilder = AIKIT::AIKIT_ParamBuilder::create();
-	// if (engineParamBuilder) {
-	//     // 设置引擎参数
-	//     engineParamBuilder->param("workDir", "D:\\AIKITDLL", strlen("D:\\AIKITDLL"));
-	//     engineParamBuilder->param("libsDir", "D:\\AIKITDLL\\libs\\64", strlen("D:\\AIKITDLL\\libs\\64"));
-
-	//     // 使用参数初始化引擎
-	//     ret = AIKIT::AIKIT_EngineInit(IVW_ABILITY, AIKIT::AIKIT_Builder::build(engineParamBuilder));
-	//     delete engineParamBuilder;
-
-	//     if (ret != 0) {
-	//         const char* errDesc = AIKITDLL::GetErrorDescription(ret);
-	//         AIKITDLL::LogError("使用参数构建器初始化引擎失败，错误码: %d, 描述: %s", ret, errDesc);
-	//         // 不直接返回，尝试无参数方式
-	//     } else {
-	//         AIKITDLL::LogInfo("使用参数构建器初始化引擎成功");
-	//         goto LOAD_DATA; // 初始化成功，直接加载数据
-	//     }
-	// }
 	int ret = 0;
 	// 尝试无参数方式初始化引擎
 	ret = AIKIT::AIKIT_EngineInit(IVW_ABILITY, nullptr);
@@ -445,7 +386,7 @@ int Ivw70Init()
 
 	// 初始化完成
 	AIKITDLL::LogInfo("语音唤醒初始化完成");
-	AIKITDLL::lastResult = "SUCCESS: Voice wake-up initialization completed successfully.";
+	AIKITDLL::lastResult = "成功：语音唤醒初始化已完成。";
 	return 0;
 }
 
@@ -467,7 +408,7 @@ int Ivw70Uninit()
 	return 0;
 }
 
-void TestIvw70(const AIKIT_Callbacks& cbs)
+int TestIvw70(const AIKIT_Callbacks& cbs)
 {
 	AIKIT::AIKIT_ParamBuilder* paramBuilder = nullptr;
 	int ret = 0;
@@ -478,7 +419,7 @@ void TestIvw70(const AIKIT_Callbacks& cbs)
 	ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
 	if (ret != 0) {
 		AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
-		return;
+		return ret;
 	}
 	AIKITDLL::LogInfo("注册能力回调成功");
 
@@ -486,7 +427,7 @@ void TestIvw70(const AIKIT_Callbacks& cbs)
 	paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
 	if (!paramBuilder) {
 		AIKITDLL::LogError("创建参数构建器失败");
-		return;
+		return -1;
 	}
 
 	// 设置参数
@@ -514,9 +455,10 @@ void TestIvw70(const AIKIT_Callbacks& cbs)
 	}
 
 	AIKITDLL::LogInfo("======================= IVW70 测试结束 ===========================");
+	return ret;
 }
 
-void TestIvw70Microphone(const AIKIT_Callbacks& cbs)
+int TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 {
 	AIKIT::AIKIT_ParamBuilder* paramBuilder = nullptr;
 	int ret = 0;
@@ -527,7 +469,7 @@ void TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 	ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
 	if (ret != 0) {
 		AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
-		return;
+		return ret;
 	}
 	AIKITDLL::LogInfo("注册能力回调成功");
 
@@ -535,13 +477,12 @@ void TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 	paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
 	if (!paramBuilder) {
 		AIKITDLL::LogError("创建参数构建器失败");
-		return;
+		return -1;
 	}
 
 	// 设置参数
 	paramBuilder->param("wdec_param_nCmThreshold", "0 0:900", strlen("0 0:900"));
 	paramBuilder->param("gramLoad", true);
-	AIKITDLL::LogInfo("参数已设置：唤醒阈值=900");
 
 	// 使用麦克风进行测试
 	AIKITDLL::LogInfo("开始从麦克风测试唤醒功能");
@@ -562,4 +503,5 @@ void TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 	}
 
 	AIKITDLL::LogInfo("======================= IVW70 麦克风测试结束 ===========================");
+	return ret;
 }
