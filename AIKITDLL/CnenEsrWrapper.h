@@ -42,6 +42,8 @@ extern "C" {
 	// 主测试函数
 	AIKITDLL_API void TestEsr(const AIKIT_Callbacks& cbs);
 
+	AIKITDLL_API void TestEsrMicrophone(const AIKIT_Callbacks& cbs);
+
 #ifdef __cplusplus
 }
 #endif

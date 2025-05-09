@@ -5,10 +5,9 @@ namespace AikitWpfDemo
 {
     internal static class NativeMethods
     {
-        // 指定DLL完整路径
         private const string DllPath = @"D:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
-        // DLL导入 - 基础功能
+        #region DLL导入 - 基础功能
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern int InitializeSDK(string appID, string apiKey, string apiSecret, string workDir);
 
@@ -20,8 +19,9 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int RunFullTest();
+        #endregion
 
-        // 获取唤醒状态相关接口
+        #region 获取唤醒状态相关接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int GetWakeupStatus();
 
@@ -30,8 +30,9 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetWakeupInfoString();
+        #endregion
 
-        // ESR命令词识别相关接口
+        #region ESR命令词识别相关接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int GetEsrStatus();
 
@@ -43,7 +44,7 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetEsrErrorInfo();
-
+        
         // 各种格式命令词识别结果接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetPgsResult();
@@ -84,15 +85,17 @@ namespace AikitWpfDemo
         // 新增 - 清空所有结果缓冲区
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern void ClearAllResultBuffers();
+        #endregion
 
+        #region 辅助方法 - 结果字符串转换
         // 辅助方法：获取上次结果字符串
         public static string GetLastResultString()
         {
             IntPtr ptr = GetLastResult();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "无结果";
         }
@@ -103,8 +106,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetWakeupInfoString();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "无唤醒信息";
         }
@@ -115,8 +118,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetEsrKeywordResult();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "无命令词识别结果";
         }
@@ -127,20 +130,21 @@ namespace AikitWpfDemo
             IntPtr ptr = GetEsrErrorInfo();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "无错误信息";
         }
+        #endregion
 
-        // 新增 - 辅助方法：获取各种格式的识别结果字符串
+        #region 辅助方法 - 各种格式识别结果转换
         public static string GetPgsResultString()
         {
             IntPtr ptr = GetPgsResult();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "";
         }
@@ -150,8 +154,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetHtkResult();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "";
         }
@@ -161,8 +165,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetPlainResult();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "";
         }
@@ -172,8 +176,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetVadResult();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "";
         }
@@ -183,10 +187,11 @@ namespace AikitWpfDemo
             IntPtr ptr = GetReadableResult();
             if (ptr != IntPtr.Zero)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+            string result = Marshal.PtrToStringAnsi(ptr);
+            return result;
             }
             return "";
         }
+        #endregion
     }
 }
