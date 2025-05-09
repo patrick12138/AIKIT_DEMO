@@ -25,3 +25,30 @@ resource/
 # 其他
 .DS_Store
 Thumbs.db
+
+## Visual Studio 2019/2022
+.vs/
+
+## Rider
+.idea/
+
+## ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+## Package management
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## VS Code settings
+.vscode/
+
+## Build results
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/

@@ -45,8 +45,6 @@ namespace AikitWpfDemo
             if (ptr != IntPtr.Zero)
             {
                 string result = Marshal.PtrToStringAnsi(ptr);
-                // 注意：此处应该有一个释放内存的操作，但我们的C++ DLL未提供
-                // 这可能会导致内存泄漏，实际应用中应该修改C++ DLL提供释放方法
                 return result;
             }
             return "无结果";
