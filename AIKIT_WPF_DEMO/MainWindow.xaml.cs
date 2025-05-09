@@ -146,7 +146,20 @@ namespace AikitWpfDemo
                 BtnRunFullTest.IsEnabled = true;
             }
         }
-    
+
+        private void BtnRunTest_Click(object sender, RoutedEventArgs e)
+        {
+            // 清空日志，准备显示新的测试信息
+            TxtLog.Text = string.Empty;
+            LogMessage("开始执行完整测试...");
+
+            // 重置唤醒状态，避免误报
+            NativeMethods.ResetWakeupStatus();
+
+            // 执行测试
+            int result = NativeMethods.RunFullTest();
+        }
+
         // 测试CortanaLikePopup弹窗 - 模拟语音识别效果
         private void BtnTestPopup_Click(object sender, RoutedEventArgs e)
         {
