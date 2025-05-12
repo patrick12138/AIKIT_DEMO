@@ -49,6 +49,7 @@ artifacts/
 ## Build results
 bin/
 obj/
+debug/
 [Bb]uild/
 [Ll]og/
 [Ll]ogs/
