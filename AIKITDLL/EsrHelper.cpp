@@ -81,7 +81,7 @@ void AddResult(const char* type, const char* result) {
 		if (strlen(g_pgsResultBuffer) > 0) {
 			strcat_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), "\n");
 		}
-		strcat_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), "pgs： ");
+		strcat_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), "pgs:");
 		strcat_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), result);
 		g_hasNewPgsResult = true;
 	}
@@ -94,7 +94,7 @@ void AddResult(const char* type, const char* result) {
 		if (strlen(g_htkResultBuffer) > 0) {
 			strcat_s(g_htkResultBuffer, sizeof(g_htkResultBuffer), "\n");
 		}
-		strcat_s(g_htkResultBuffer, sizeof(g_htkResultBuffer), "htk： ");
+		strcat_s(g_htkResultBuffer, sizeof(g_htkResultBuffer), "htk:");
 		strcat_s(g_htkResultBuffer, sizeof(g_htkResultBuffer), result);
 		g_hasNewHtkResult = true;
 	}
@@ -106,7 +106,7 @@ void AddResult(const char* type, const char* result) {
 		if (strlen(g_plainResultBuffer) > 0) {
 			strcat_s(g_plainResultBuffer, sizeof(g_plainResultBuffer), "\n");
 		}
-		strcat_s(g_plainResultBuffer, sizeof(g_plainResultBuffer), "plain： ");
+		strcat_s(g_plainResultBuffer, sizeof(g_plainResultBuffer), "plain: ");
 		strcat_s(g_plainResultBuffer, sizeof(g_plainResultBuffer), result);
 		g_hasNewPlainResult = true;
 	}
@@ -118,7 +118,7 @@ void AddResult(const char* type, const char* result) {
 		if (strlen(g_vadResultBuffer) > 0) {
 			strcat_s(g_vadResultBuffer, sizeof(g_vadResultBuffer), "\n");
 		}
-		strcat_s(g_vadResultBuffer, sizeof(g_vadResultBuffer), "vad： ");
+		strcat_s(g_vadResultBuffer, sizeof(g_vadResultBuffer), "vad: ");
 		strcat_s(g_vadResultBuffer, sizeof(g_vadResultBuffer), result);
 		g_hasNewVadResult = true;
 	}
@@ -130,7 +130,7 @@ void AddResult(const char* type, const char* result) {
 		if (strlen(g_readableResultBuffer) > 0) {
 			strcat_s(g_readableResultBuffer, sizeof(g_readableResultBuffer), "\n");
 		}
-		strcat_s(g_readableResultBuffer, sizeof(g_readableResultBuffer), "readable： ");
+		strcat_s(g_readableResultBuffer, sizeof(g_readableResultBuffer), "readable: ");
 		strcat_s(g_readableResultBuffer, sizeof(g_readableResultBuffer), result);
 		g_hasNewReadableResult = true;
 	}

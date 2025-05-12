@@ -343,10 +343,9 @@ int Ivw70Init()
 	// 尝试无参数方式初始化引擎
 	ret = AIKIT::AIKIT_EngineInit(IVW_ABILITY, nullptr);
 	if (ret != 0) {
-		const char* errDesc = AIKITDLL::GetErrorDescription(ret);
-		AIKITDLL::LogError("引擎初始化失败，错误码: %d, 描述: %s", ret, errDesc);
+		AIKITDLL::LogError("引擎初始化失败，错误码: %d, 描述: %s", ret);
 		AIKITDLL::lastResult = "ERROR: Engine initialization failed with code: " + std::to_string(ret) +
-			". " + std::string(errDesc) + ". Resource path: ";
+			". " + ". Resource path: ";
 		return ret;
 	}
 	AIKITDLL::LogInfo("唤醒引擎初始化成功");
@@ -363,8 +362,6 @@ int Ivw70Init()
 
 	ret = AIKIT::AIKIT_LoadData(IVW_ABILITY, &customData);
 	if (ret != 0) {
-		const char* errDesc = AIKITDLL::GetErrorDescription(ret);
-
 		AIKIT::AIKIT_EngineUnInit(IVW_ABILITY);
 		return ret;
 	}
@@ -374,10 +371,9 @@ int Ivw70Init()
 	int index[] = { 0 };
 	ret = AIKIT::AIKIT_SpecifyDataSet(IVW_ABILITY, "key_word", index, 1);
 	if (ret != 0) {
-		const char* errDesc = AIKITDLL::GetErrorDescription(ret);
-		AIKITDLL::LogError("指定数据集失败，错误码: %d, 描述: %s", ret, errDesc);
+		AIKITDLL::LogError("指定数据集失败，错误码: %d, 描述: %s", ret);
 		AIKITDLL::lastResult = "ERROR: Failed to specify data set with code: " + std::to_string(ret) +
-			". " + std::string(errDesc) + ". Please check your resource configuration.";
+			". " + ". Please check your resource configuration.";
 		AIKIT::AIKIT_UnLoadData(IVW_ABILITY, "key_word", 0);
 		AIKIT::AIKIT_EngineUnInit(IVW_ABILITY);
 		return ret;

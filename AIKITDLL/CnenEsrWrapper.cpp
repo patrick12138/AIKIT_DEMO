@@ -36,57 +36,6 @@ namespace AIKITDLL {
 	std::mutex esrResultMutex;                   // 结果保护互斥锁
 }
 
-// 显示操作提示
-static void show_key_hints(void)
-{
-	AIKITDLL::LogInfo("----------------------------");
-	AIKITDLL::LogInfo("按r键开始说话");
-	AIKITDLL::LogInfo("按s键结束说话");
-	AIKITDLL::LogInfo("按q键退出");
-	AIKITDLL::LogInfo("----------------------------");
-}
-
-// 辅助线程：监听键盘输入
-static unsigned int __stdcall helper_thread_proc(void* para)
-{
-	int key;
-	int quit = 0;
-
-	do {
-		key = _getch();
-		switch (key) {
-		case 'r':
-		case 'R':
-			SetEvent(events[EVT_START]);
-			break;
-		case 's':
-		case 'S':
-			SetEvent(events[EVT_STOP]);
-			break;
-		case 'q':
-		case 'Q':
-			quit = 1;
-			SetEvent(events[EVT_QUIT]);
-			PostQuitMessage(0);
-			break;
-		default:
-			break;
-		}
-
-		if (quit)
-			break;
-	} while (1);
-
-	return 0;
-}
-
-// 启动辅助线程
-static HANDLE start_helper_thread()
-{
-	HANDLE hdl;
-	hdl = (HANDLE)_beginthreadex(NULL, 0, helper_thread_proc, NULL, 0, NULL);
-	return hdl;
-}
 
 // 解析ESR回调结果中的命令词
 static void parseEsrKeyword(const char* jsonResult)
@@ -172,40 +121,35 @@ namespace AIKITDLL {
 			}
 		}
 
-		// 启动辅助线程
-		helper_thread = start_helper_thread();
-		if (helper_thread == NULL) {
-			AIKITDLL::LogError("创建辅助线程失败");
-
-			// 清理资源
-			for (int i = 0; i < EVT_TOTAL; ++i) {
-				if (events[i]) CloseHandle(events[i]);
-			}
-			EsrUninit(&esr);
-			return -1;
+		// 立即开始监听
+		AIKITDLL::LogInfo("开始监听语音...");
+		errcode = EsrStartListening(&esr);
+		if (errcode) {
+			AIKITDLL::LogError("开始监听失败，错误码: %d", errcode);
+			isquit = 1;
 		}
 
-		// 显示操作提示
-		show_key_hints();
+		// 主循环处理事件，直到识别到命令词
+		while (!isquit) {
+			// 检查是否已经识别到命令词
+			if (esrStatus.load() == ESR_STATUS_SUCCESS && !lastEsrKeywordResult.empty()) {
+				AIKITDLL::LogInfo("已识别到命令词: %s，准备退出监听", lastEsrKeywordResult.c_str());
+				errcode = EsrStopListening(&esr);
+				if (errcode) {
+					AIKITDLL::LogError("停止监听失败，错误码: %d", errcode);
+				}
+				break;
+			}
 
-		// 主循环处理事件
-		while (1) {
-			waitres = WaitForMultipleObjects(EVT_TOTAL, events, FALSE, INFINITE);
+			// 等待事件，设置较短的超时时间以便定期检查识别结果
+			waitres = WaitForMultipleObjects(EVT_TOTAL, events, FALSE, 500);
 			switch (waitres) {
 			case WAIT_FAILED:
 				AIKITDLL::LogError("等待事件失败，错误码: %d", GetLastError());
 				isquit = 1;
 				break;
 			case WAIT_TIMEOUT:
-				AIKITDLL::LogWarning("等待超时");
-				break;
-			case WAIT_OBJECT_0 + EVT_START:
-				AIKITDLL::LogInfo("开始监听语音...");
-				errcode = EsrStartListening(&esr);
-				if (errcode) {
-					AIKITDLL::LogError("开始监听失败，错误码: %d", errcode);
-					isquit = 1;
-				}
+				// 超时只是为了检查识别状态，不需要记录警告
 				break;
 			case WAIT_OBJECT_0 + EVT_STOP:
 				AIKITDLL::LogInfo("停止监听语音...");
@@ -223,9 +167,6 @@ namespace AIKITDLL {
 			default:
 				break;
 			}
-
-			if (isquit)
-				break;
 		}
 
 		// 清理资源

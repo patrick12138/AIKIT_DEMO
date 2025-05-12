@@ -88,9 +88,9 @@ namespace AikitWpfDemo
                     if (lines.Length > 0)
                     {
                         string lastLine = lines[lines.Length - 1];
-                        if (lastLine.StartsWith("pgs： "))
+                        if (lastLine.StartsWith("pgs"))
                         {
-                            _cortanaPopup.UpdateText(lastLine.Substring(5)); // 去掉"pgs： "前缀
+                            _cortanaPopup.UpdateText(lastLine.Substring(4)); // 去掉"pgs： "前缀
                         }
                         else
                         {
@@ -253,7 +253,6 @@ namespace AikitWpfDemo
                 // 重置状态，避免误报
                 NativeMethods.ResetWakeupStatus();
                 NativeMethods.ResetEsrStatus();
-                //NativeMethods.ClearAllResultBuffers();
 
                 // 启动识别结果监控定时器
                 if (!_resultMonitorTimer.IsEnabled)

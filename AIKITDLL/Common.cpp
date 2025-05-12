@@ -90,7 +90,7 @@ namespace AIKITDLL {
 	// 将日志写入文件
 	void WriteToLogFile(const std::string& level, const std::string& message) {
 		std::lock_guard<std::mutex> lock(logMutex);
-		std::ofstream logFile("D:\\AIKITDLL\\aikit.log", std::ios::app);
+		std::ofstream logFile("D:\\AIKITDLL\\aikit_wpf.log", std::ios::app);
 		if (logFile.is_open()) {
 			logFile << GetCurrentTimeString() << " [" << level << "] " << message << std::endl;
 			logFile.close();
@@ -142,57 +142,6 @@ namespace AIKITDLL {
 		va_start(args, format);
 		LogCommon("DEBUG", format, args);
 		va_end(args);
-	}
-
-	// 根据错误码获取错误描述的实现
-	const char* GetErrorDescription(int errorCode) {
-		// 根据错误码返回对应的描述文本
-		switch (errorCode) {
-		case 0:
-			return "成功";
-		case -1:
-			return "一般性错误";
-		case -2:
-			return "参数错误";
-		case -3:
-			return "授权错误";
-		case -4:
-			return "资源文件不存在或损坏";
-		case -5:
-			return "系统配置错误";
-		case -6:
-			return "内存分配失败";
-		case -7:
-			return "网络连接错误";
-		case -8:
-			return "数据处理错误";
-		case -9:
-			return "超时错误";
-		case -10:
-			return "引擎未初始化";
-		case -11:
-			return "资源加载失败";
-		case -12:
-			return "服务器返回错误";
-		case -13:
-			return "引擎初始化失败";
-		case -14:
-			return "引擎已初始化";
-		case -15:
-			return "句柄无效";
-		case -16:
-			return "音频格式错误";
-		case -17:
-			return "文件操作错误";
-		case -18:
-			return "数据集不存在";
-		case -19:
-			return "关键词未识别";
-		case -20:
-			return "配置文件格式错误";
-		default:
-			return "未知错误";
-		}
 	}
 
 	// 加载引擎所需的动态库

@@ -48,7 +48,7 @@ extern "C" {
 			.log()
 			.logLevel(LOG_LVL_INFO)
 			.logMode(2)
-			.logPath("D:\\AIKITDLL\\aikit.log");
+			.logPath("D:\\AIKITDLL\\aikit_wpf.log");
 
 		int ret = AIKIT::AIKIT_Init();
 		if (ret != 0) {

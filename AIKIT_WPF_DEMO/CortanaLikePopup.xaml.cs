@@ -26,6 +26,11 @@ namespace AikitWpfDemo
         private bool _isDragging = false;
         private Point _dragStartPoint;
 
+        // 添加用于打字效果的成员
+        private System.Windows.Threading.DispatcherTimer _typingEffectTimer;
+        private string _fullTextForTyping;
+        private int _currentCharTypingIndex;
+
         // 注释掉模拟语音识别的预设指令
         /*
         private List<string> _simulatedCommands = new List<string>
@@ -51,6 +56,11 @@ namespace AikitWpfDemo
             InitializeComponent();
             // 设置DataContext以支持绑定
             this.DataContext = this;
+
+            // 初始化打字效果定时器
+            _typingEffectTimer = new System.Windows.Threading.DispatcherTimer();
+            _typingEffectTimer.Interval = TimeSpan.FromMilliseconds(100); // 打字速度，可以调整
+            _typingEffectTimer.Tick += TypingEffectTimer_Tick;
             
             // 注释掉模拟相关初始化
             /*
@@ -127,7 +137,6 @@ namespace AikitWpfDemo
             this.Hide(); // 或者 this.Close(); 如果你想完全释放它
         }
 
-        // 注释掉模拟语音识别相关方法
         /*
         // 启动模拟语音识别
         public void StartSimulation()
@@ -190,7 +199,46 @@ namespace AikitWpfDemo
         // 当语音被识别时，从你的主应用程序逻辑调用此方法
         public void UpdateText(string newText)
         {
-            RecognizedText = newText;
+            // 停止任何正在进行的打字动画
+            if (_typingEffectTimer != null)
+            {
+                _typingEffectTimer.Stop();
+            }
+
+            _fullTextForTyping = newText;
+            _currentCharTypingIndex = 0;
+            RecognizedText = ""; // 清空当前文本，准备开始打字
+
+            if (!string.IsNullOrEmpty(_fullTextForTyping))
+            {
+                if (_typingEffectTimer == null) // 确保定时器已初始化
+                {
+                    _typingEffectTimer = new System.Windows.Threading.DispatcherTimer();
+                    _typingEffectTimer.Interval = TimeSpan.FromMilliseconds(100); // 打字速度
+                    _typingEffectTimer.Tick += TypingEffectTimer_Tick;
+                }
+                _typingEffectTimer.Start(); // 开始打字效果
+            }
+            else
+            {
+                RecognizedText = ""; // 如果新文本为空，直接清空
+            }
+        }
+
+        // 打字效果定时器事件处理
+        private void TypingEffectTimer_Tick(object sender, EventArgs e)
+        {
+            if (_currentCharTypingIndex < _fullTextForTyping.Length)
+            {
+                // 逐个字符添加
+                RecognizedText += _fullTextForTyping[_currentCharTypingIndex];
+                _currentCharTypingIndex++;
+            }
+            else
+            {
+                // 当前文本显示完毕
+                _typingEffectTimer.Stop();
+            }
         }
 
         // 当检测到你的唤醒词时调用此方法

@@ -49,9 +49,6 @@ namespace AIKITDLL {
 	void LogWarning(const char* format, ...);
 	void LogDebug(const char* format, ...);
 
-	// 根据错误码获取错误描述
-	const char* GetErrorDescription(int errorCode);
-
 	// 引擎初始化支持函数
 	bool EnsureEngineDllsLoaded(); // 确保引擎DLL被正确加载
 	bool ValidateEngineResources(const char* resourcePath); // 验证引擎资源文件完整性
