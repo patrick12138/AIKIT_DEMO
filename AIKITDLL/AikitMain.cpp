@@ -12,30 +12,30 @@ extern "C" {
 	{
 		FILE* fin = nullptr;
 		/**
-		 * ÅäÖÃÊÚÈ¨ÀëÏßÄÜÁ¦£¬Èç¹ûĞèÅäÖÃ¶à¸öÄÜÁ¦£¬¿ÉÒÔÓÃ";"·Ö¸ô¿ª, Èç"e867a88f2;ece9d3c90"
-		 * ÓïÒô»½ĞÑ id = e867a88f2
-		 * ÀëÏßÃüÁî´ÊÊ¶±ğ id = e75f07b62
-		 * ÀëÏßÓïÒôºÏ³É id = e2e44feff
+		 * ä¼ å…¥çš„æƒé™å‚æ•°ï¼Œå¤šä¸ªèƒ½åŠ›ç”¨åˆ†å·";"åˆ†éš”ï¼Œå¦‚"e867a88f2;ece9d3c90"
+		 * å”¤é†’è¯ id = e867a88f2
+		 * ä¸­è‹±æ–‡è¯†åˆ« id = e75f07b62
+		 * å£°éŸ³åˆæˆ id = e2e44feff
 		*/
-		// Ìí¼ÓËùÓĞĞèÒªÊ¹ÓÃµÄÄÜÁ¦ID
-		const char* ability_id = "e867a88f2;e75f07b62";  // Ìí¼ÓÓïÒôºÏ³ÉÄÜÁ¦ID
+		// è®¾ç½®éœ€è¦ä½¿ç”¨çš„èƒ½åŠ›ID
+		const char* ability_id = "e867a88f2;e75f07b62";  // å”¤é†’å’Œåˆæˆèƒ½åŠ›ID
 		if (strlen(ability_id) == 0)
 		{
 			printf("ability_id is empty!!\n");
 			AIKITDLL::lastResult = "ERROR: Ability ID is empty. Please provide valid ability IDs.";
 			return -1;
 		}
-		// ÉèÖÃÏêÏ¸µÄÈÕÖ¾Êä³ö
-		AIKITDLL::LogDebug("¿ªÊ¼³õÊ¼»¯AIKIT SDKºÍÓïÒô»½ĞÑÒıÇæ...\n");
+		// è¾“å‡ºè¯¦ç»†æ—¥å¿—ä¿¡æ¯
+		AIKITDLL::LogDebug("å¼€å§‹åˆå§‹åŒ–AIKIT SDKåŸºç¡€åŠŸèƒ½ç»„ä»¶...\n");
 
-		// ¶¨Òå¹Ø¼ü²ÎÊı
+		// è®¾ç½®å…³é”®å‚æ•°
 		const char* appID = "80857b22";
 		const char* apiSecret = "ZDkyM2RkZjcyYTZmM2VjMDM0MzVmZDJl";
 		const char* apiKey = "f27d0261fb5fa1733b7e9a2190006aec";
 		const char* workDir = ".";
-		const char* abilityID = IVW_ABILITY; // Ê¹ÓÃ¶¨ÒåºÃµÄ³£Á¿
+		const char* abilityID = IVW_ABILITY; // ä½¿ç”¨å®šä¹‰å¥½çš„å¸¸é‡
 
-		// ¹¹½¨ÅäÖÃ²¢Íê³ÉSDK³õÊ¼»¯
+		// é…ç½®å¹¶è®¾ç½®å‚æ•°ï¼ŒSDKåˆå§‹åŒ–
 		auto config = AIKIT::AIKIT_Configurator::builder()
 			.app()
 			.appID(appID)
@@ -57,47 +57,45 @@ extern "C" {
 			return -1;
 		}
 
-		AIKITDLL::LogDebug("AIKIT SDK³õÊ¼»¯³É¹¦£¬¿ªÊ¼³õÊ¼»¯ÓïÒô»½ĞÑÒıÇæ...\n");
-		AIKITDLL::lastResult = "INFO: AIKIT³õÊ¼»¯³É¹¦¡£";
+		AIKITDLL::LogDebug("AIKIT SDKåˆå§‹åŒ–æˆåŠŸï¼Œå¼€å§‹åˆå§‹åŒ–åŠŸèƒ½ç»„ä»¶...\n");
+		AIKITDLL::lastResult = "INFO: AIKITåˆå§‹åŒ–æˆåŠŸï¼";
 
-		// ÉèÖÃ»Øµ÷º¯Êı
+		// è®¾ç½®å›è°ƒå‡½æ•°
 		AIKIT_Callbacks cbs = { AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError };
 
-		AIKITDLL::LogDebug("½øÈëIvw70Init");
+		AIKITDLL::LogDebug("è°ƒç”¨Ivw70Init");
 		ret = Ivw70Init();
 		if (ret != 0) {
 			AIKIT::AIKIT_UnInit();
 			return -1;
 		}
-		AIKITDLL::LogDebug("INFO: Voice wake-up ³õÊ¼»¯³É¹¦");
-		AIKITDLL::LogDebug("½øÈëTestIvw70");
+		AIKITDLL::LogDebug("INFO: Voice wake-up åˆå§‹åŒ–æˆåŠŸ");
+		AIKITDLL::LogDebug("è°ƒç”¨éº¦å…‹é£å”¤é†’");
 		int ivwResult = 0;
 		do {
-			AIKITDLL::LogDebug("½øÈëTestIvw70");
 			ivwResult = TestIvw70(cbs);
 			if (ivwResult != 0) {
 				AIKITDLL::LogWarning("TestIvw70 failed with code: %d, retrying...", ivwResult);
-				// ¿ÉÑ¡µÄ: µÈ´ıÒ»¶ÎÊ±¼äÔÙÖØÊÔ
-				Sleep(1000);  // µÈ´ı1ÃëÔÙÖØÊÔ
+				// å¯é€‰é¡¹: ç­‰å¾…ä¸€æ®µæ—¶é—´åé‡è¯•
+				Sleep(1000);  // ç­‰å¾…1ç§’åé‡è¯•
 			}
 		} while (ivwResult != 0);
 
 		AIKITDLL::LogInfo("TestIvw70 succeeded, proceeding to TestEsr");
 
-		AIKITDLL::LogDebug("½øÈëTestEsr");
-		TestEsr(cbs);
+		AIKITDLL::LogDebug("è°ƒç”¨TestEsr");
+		TestEsrMicrophone(cbs);
 
-		// È·±£¹Ø±ÕÎÄ¼ş×ÊÔ´
+		// ç¡®ä¿å…³é—­æ–‡ä»¶èµ„æº
 		if (fin != nullptr) {
 			fclose(fin);
 			fin = nullptr;
 		}
 
-		// Õı³£ÍË³öÁ÷³Ì
-		Ivw70Uninit();      //ĞèÒªºÍIvw70Init³É¶Ô³öÏÖ
-		AIKITDLL::lastResult = "INFO: ÓïÒô»½ĞÑÄ£¿éÒÑĞ¶ÔØ¡£";
+		// æ¸…ç†é€€å‡ºæ“ä½œ
+		Ivw70Uninit();      //éœ€è¦å’ŒIvw70Initæˆå¯¹å‡ºç°
 		AIKIT::AIKIT_UnInit();
-		AIKITDLL::lastResult = "SUCCESS: ²âÊÔ³É¹¦Íê³É¡£ËùÓĞ×ÊÔ´ÒÑÊÍ·Å¡£";
+		AIKITDLL::lastResult = "RUN ALL TEST SUCCESS!";
 		return 0;
 	}
 #ifdef __cplusplus

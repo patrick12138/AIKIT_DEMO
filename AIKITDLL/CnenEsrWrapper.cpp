@@ -36,62 +36,6 @@ namespace AIKITDLL {
 	std::mutex esrResultMutex;                   // 结果保护互斥锁
 }
 
-
-// 解析ESR回调结果中的命令词
-static void parseEsrKeyword(const char* jsonResult)
-{
-	if (!jsonResult || strlen(jsonResult) == 0) {
-		return;
-	}
-
-	// 简单示例：提取命令词文本，实际应用中建议使用JSON解析库
-	std::string result(jsonResult);
-
-	// 检查是否包含"w":"后面的内容
-	size_t wPos = result.find("\"w\":\"");
-	if (wPos != std::string::npos) {
-		wPos += 5; // 跳过"w":"
-		size_t endPos = result.find("\"", wPos);
-		if (endPos != std::string::npos) {
-			std::string keyword = result.substr(wPos, endPos - wPos);
-
-			// 更新结果
-			std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
-			AIKITDLL::lastEsrKeywordResult = keyword;
-			AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
-			AIKITDLL::LogInfo("提取到命令词: %s", keyword.c_str());
-		}
-	}
-}
-
-// ESR回调结果处理函数
-void processEsrCallback(const char* key, const char* value)
-{
-	if (!key || !value) {
-		return;
-	}
-
-	AIKITDLL::LogInfo("ESR回调: key:%s\tvalue:%s", key, value);
-
-	// 处理不同类型的回调
-	if (strcmp(key, "readable") == 0) {
-		// 处理可读结果
-		parseEsrKeyword(value);
-	}
-	else if (strcmp(key, "plain") == 0) {
-		// 直接文本结果
-		std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
-		AIKITDLL::lastEsrKeywordResult = value;
-		AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
-	}
-	else if (strcmp(key, "error") == 0) {
-		// 错误信息
-		std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
-		AIKITDLL::lastEsrErrorInfo = value;
-		AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-	}
-}
-
 // 从麦克风获取ESR结果的实现
 namespace AIKITDLL {
 	int esr_microphone(const char* abilityID)
@@ -260,15 +204,6 @@ int CnenEsrUninit()
 	return 0;
 }
 
-// 从麦克风输入获取ESR结果
-int EsrFromMicrophone()
-{
-	AIKITDLL::LogInfo("开始麦克风语音识别测试");
-	int ret = AIKITDLL::esr_microphone(ESR_ABILITY);
-	AIKITDLL::LogInfo("麦克风语音识别测试结束");
-	return ret;
-}
-
 // 从文件输入获取ESR结果
 int EsrFromFile(const char* audioFilePath)
 {
@@ -385,7 +320,7 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 
 		// 从麦克风获取音频数据
 		AIKITDLL::LogInfo("开始从麦克风获取音频数据");
-		ret = EsrFromMicrophone();
+		ret = AIKITDLL::esr_microphone(ESR_ABILITY);
 		if (ret != 0) {
 			AIKITDLL::LogError("麦克风处理失败，错误码: %d", ret);
 			AIKITDLL::esrStatus = ESR_STATUS_FAILED;

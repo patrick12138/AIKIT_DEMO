@@ -100,14 +100,23 @@ namespace AikitWpfDemo
             return "无结果";
         }
 
-        // 辅助方法：获取唤醒词信息字符串
+        // 辅助方法：获取唤醒词信息字符串（修正中文乱码问题，采用UTF-8解码）
         public static string GetWakeupInfoStringResult()
         {
             IntPtr ptr = GetWakeupInfoString();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                // 计算字符串长度（遇到\0为止）
+                int len = 0;
+                while (Marshal.ReadByte(ptr, len) != 0) len++;
+                if (len > 0)
+                {
+                    byte[] buffer = new byte[len];
+                    Marshal.Copy(ptr, buffer, 0, len);
+                    // 用UTF-8解码，防止中文乱码
+                    string result = System.Text.Encoding.UTF8.GetString(buffer);
+                    return result;
+                }
             }
             return "无唤醒信息";
         }
