@@ -92,10 +92,22 @@ namespace AikitWpfDemo
                         string lastLine = lines[lines.Length - 1];
                         if (lastLine.StartsWith("pgs"))
                         {
-                            _cortanaPopup.UpdateText(lastLine.Substring(4)); // 去掉"pgs： "前缀
+                            // 如果弹窗未显示，先显示弹窗
+                            if (!_cortanaPopup.IsVisible)
+                            {
+                                _cortanaPopup.Show();
+                                _cortanaPopup.Activate();
+                            }
+                            _cortanaPopup.UpdateText(lastLine.Substring(4)); // 去掉"pgs："前缀
                         }
                         else
                         {
+                            // 如果弹窗未显示，先显示弹窗
+                            if (!_cortanaPopup.IsVisible)
+                            {
+                                _cortanaPopup.Show();
+                                _cortanaPopup.Activate();
+                            }
                             _cortanaPopup.UpdateText(lastLine);
                         }
                     }

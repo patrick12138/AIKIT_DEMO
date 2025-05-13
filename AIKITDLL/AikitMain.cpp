@@ -90,8 +90,8 @@ extern "C"
 			return -1;
 		}
 
-		AIKITDLL::lastResult = "SUCCESS: 语音唤醒已启动";
 		AIKITDLL::LogDebug("语音唤醒启动成功\n");
+		AIKITDLL::lastResult = "SUCCESS: 语音唤醒已启动";
 		return 0;
 	}
 
