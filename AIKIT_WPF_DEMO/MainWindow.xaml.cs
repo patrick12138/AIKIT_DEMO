@@ -57,7 +57,7 @@ namespace AikitWpfDemo
         // 检查和处理所有类型的新结果
         private void CheckAndProcessNewResults()
         {
-            bool hasAnyNewResult = false;
+            bool hasAnyNewResult = true;
             StringBuilder resultBuilder = null;
 
             if (_mergeResults)
@@ -237,44 +237,26 @@ namespace AikitWpfDemo
             base.OnClosed(e);
         }
 
-        // 运行完整测试并显示弹窗
-        private void BtnRunFullTest_Click(object sender, RoutedEventArgs e)
+        // 启动唤醒测试按钮点击事件处理
+        private void BtnStartWakeup_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // 清空日志，准备显示新的测试信息
+                // 清空日志
                 TxtLog.Text = string.Empty;
-                LogMessage("开始执行完整测试...");
+                LogMessage("开始唤醒测试...");
 
-                // 清空各种结果缓存
-                _lastPgsResult = string.Empty;
-                _lastHtkResult = string.Empty;
-                _lastPlainResult = string.Empty;
-                _lastVadResult = string.Empty;
-                _lastReadableResult = string.Empty;
-
-                // 重置状态，避免误报
+                // 重置唤醒状态
                 NativeMethods.ResetWakeupStatus();
-                NativeMethods.ResetEsrStatus();
 
-                // 启动识别结果监控定时器
-                if (!_resultMonitorTimer.IsEnabled)
-                {
-                    _resultMonitorTimer.Start();
-                    LogMessage("已启动实时识别结果监控");
-                }
+                // 禁用按钮防止重复点击
+                BtnStartWakeup.IsEnabled = false;
 
-                // 禁用按钮，防止重复点击
-                BtnRunFullTest.IsEnabled = false;
-
-                // 执行测试
-                int result = NativeMethods.RunFullTest();
-
-                // 获取并记录详细结果信息
+                // 启动唤醒测试
+                int result = NativeMethods.StartWakeup();
                 string detailedResult = NativeMethods.GetLastResultString();
-                LogMessage($"测试启动结果: {detailedResult}");
+                LogMessage($"唤醒测试启动结果: {detailedResult}");
 
-                // 检查唤醒状态 - 只有唤醒成功才显示弹窗
                 if (NativeMethods.GetWakeupStatus() == 1)
                 {
                     string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
@@ -294,6 +276,52 @@ namespace AikitWpfDemo
                 {
                     LogMessage("未检测到唤醒词，弹窗未显示");
                 }
+
+                // 重新启用按钮
+                BtnStartWakeup.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"启动唤醒测试时发生异常: {ex.Message}");
+                MessageBox.Show($"启动唤醒测试时发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                BtnStartWakeup.IsEnabled = true;
+
+                // 停止监控定时器
+                if (_resultMonitorTimer != null && _resultMonitorTimer.IsEnabled)
+                {
+                    _resultMonitorTimer.Stop();
+                }
+            }
+        }
+
+        // 运行完整测试并显示弹窗
+        private void BtnRunFullTest_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 清空各种结果缓存
+                _lastPgsResult = string.Empty;
+                _lastHtkResult = string.Empty;
+                _lastPlainResult = string.Empty;
+                _lastVadResult = string.Empty;
+                _lastReadableResult = string.Empty;
+
+                // 启动识别结果监控定时器
+                if (!_resultMonitorTimer.IsEnabled)
+                {
+                    _resultMonitorTimer.Start();
+                    LogMessage("已启动实时识别结果监控");
+                }
+
+                // 禁用按钮，防止重复点击
+                BtnRunFullTest.IsEnabled = false;
+
+                // 执行测试
+                int result = NativeMethods.StartEsrMicrophone();
+
+                // 获取并记录详细结果信息
+                string detailedResult = NativeMethods.GetLastResultString();
+                LogMessage($"测试启动结果: {detailedResult}");
 
                 if (result == 0)
                 {
@@ -319,13 +347,6 @@ namespace AikitWpfDemo
                     _resultMonitorTimer.Stop();
                 }
             }
-        }
-
-        // 供扩展使用的辅助方法
-        private void OnWakeWordDetected()
-        {
-            _cortanaPopup.UpdateText("正在聆听...");
-            _cortanaPopup.ShowPopup();
         }
     }
 }

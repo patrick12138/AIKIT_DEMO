@@ -18,7 +18,11 @@ namespace AikitWpfDemo
         public static extern IntPtr GetLastResult();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int RunFullTest();
+        public static extern int StartEsrMicrophone();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StartWakeup();
+
         #endregion
 
         #region 获取唤醒状态相关接口
@@ -44,7 +48,7 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetEsrErrorInfo();
-        
+
         // 各种格式命令词识别结果接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetPgsResult();
@@ -94,8 +98,17 @@ namespace AikitWpfDemo
             IntPtr ptr = GetLastResult();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                // 计算字符串长度（遇到\0为止）
+                int len = 0;
+                while (Marshal.ReadByte(ptr, len) != 0) len++;
+                if (len > 0)
+                {
+                    byte[] buffer = new byte[len];
+                    Marshal.Copy(ptr, buffer, 0, len);
+                    // 用UTF-8解码，防止中文乱码
+                    string result = System.Text.Encoding.UTF8.GetString(buffer);
+                    return result;
+                }
             }
             return "无结果";
         }
@@ -127,8 +140,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetEsrKeywordResult();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
             }
             return "无命令词识别结果";
         }
@@ -139,8 +152,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetEsrErrorInfo();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
             }
             return "无错误信息";
         }
@@ -152,8 +165,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetPgsResult();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
             }
             return "";
         }
@@ -163,8 +176,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetHtkResult();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
             }
             return "";
         }
@@ -174,8 +187,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetPlainResult();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
             }
             return "";
         }
@@ -185,8 +198,8 @@ namespace AikitWpfDemo
             IntPtr ptr = GetVadResult();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
             }
             return "";
         }
@@ -196,11 +209,13 @@ namespace AikitWpfDemo
             IntPtr ptr = GetReadableResult();
             if (ptr != IntPtr.Zero)
             {
-            string result = Marshal.PtrToStringAnsi(ptr);
-            return result;
+                string result = Marshal.PtrToStringAnsi(ptr);
+                return result;
             }
             return "";
         }
+
+
         #endregion
     }
 }

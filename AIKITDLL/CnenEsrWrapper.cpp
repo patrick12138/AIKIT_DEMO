@@ -237,7 +237,6 @@ void TestEsr(const AIKIT_Callbacks& cbs)
 	AIKITDLL::LogInfo("======================= ESR 测试开始 ===========================");
 
 	try {
-		// 注册回调
 		int ret = 0;
 
 		// 设置状态为处理中
@@ -251,6 +250,7 @@ void TestEsr(const AIKIT_Callbacks& cbs)
 			return;
 		}
 		AIKITDLL::LogInfo("注册能力回调成功");
+
 		// 初始化ESR
 		ret = CnenEsrInit();
 		if (ret != 0) {
