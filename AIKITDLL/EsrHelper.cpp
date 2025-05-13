@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <string>
 #include <unordered_map>
+#include <process.h>
 
 using namespace AIKIT;
 
@@ -323,35 +324,68 @@ int EsrStartListening(struct EsrRecognizer* esr)
 	int errcode = 0;
 	int index[] = { 0 };
 
+	AIKITDLL::LogInfo("状态(state): %d", esr->state);
+	AIKITDLL::LogInfo("音频来源(aud_src): %d", esr->aud_src);
+	AIKITDLL::LogInfo("音频状态(audio_status): %d", esr->audio_status);
+	AIKITDLL::LogInfo("能力ID(ABILITY): %s", esr->ABILITY);
+	AIKITDLL::LogInfo("句柄(handle): %p", esr->handle);
+	AIKITDLL::LogInfo("数据构建器(dataBuilder): %p", esr->dataBuilder);
+	AIKITDLL::LogInfo("参数构建器(paramBuilder): %p", esr->paramBuilder);
+	AIKITDLL::LogInfo("录音设备句柄(recorder): %p", esr->recorder);
+	AIKITDLL::LogInfo("当前状态: %d", esr->state);
+
+	// 如果已经有handle，输出其详细信息
+	if (esr->handle) {
+		AIKITDLL::LogInfo("句柄详细信息:");
+		AIKITDLL::LogInfo("  用户上下文: %p", esr->handle->usrContext);
+		AIKITDLL::LogInfo("  能力ID: %s", esr->handle->abilityID ? esr->handle->abilityID : "空");
+		AIKITDLL::LogInfo("  句柄ID: %zu", esr->handle->handleID);
+	}
+	
 	if (esr->state >= ESR_STATE_STARTED) {
+		AIKITDLL::LogDebug("识别器已在运行状态,无需重复启动");
 		esr_dbg("已经开始监听.");
 		return E_SR_ALREADY;
 	}
+
+	AIKITDLL::LogDebug("开始指定数据集...");
 	index[0] = 0;
 	errcode = AIKIT_SpecifyDataSet(esr->ABILITY, "FSA", index, sizeof(index) / sizeof(int));
-	if (errcode != 0)
+	if (errcode != 0) {
+		AIKITDLL::LogDebug("指定数据集失败,错误码: %d", errcode);
 		return errcode;
+	}
+	AIKITDLL::LogDebug("数据集指定成功");
+
+	AIKITDLL::LogDebug("正在启动AIKIT服务...");
 	errcode = AIKIT_Start(esr->ABILITY, AIKIT_Builder::build(esr->paramBuilder), nullptr, &esr->handle);
 	if (0 != errcode)
 	{
+		AIKITDLL::LogDebug("AIKIT_Start 启动失败,错误码: %d", errcode);
 		esr_dbg("AIKIT_Start 失败! 错误码:%d", errcode);
 		return errcode;
 	}
+	AIKITDLL::LogDebug("AIKIT服务启动成功");
+
 	esr->audio_status = AIKIT_DataBegin;
 
 	if (esr->aud_src == ESR_MIC) {
+		AIKITDLL::LogDebug("正在启动麦克风录音...");
 		ret = start_record(esr->recorder);
 		if (ret != 0) {
+			AIKITDLL::LogDebug("启动录音失败,错误码: %d", ret);
 			esr_dbg("开始录音失败: %d", ret);
 			ret = AIKIT_End(esr->handle);
 			esr->handle = NULL;
 			return E_SR_RECORDFAIL;
 		}
+		AIKITDLL::LogDebug("麦克风录音启动成功");
 	}
 
 	esr->state = ESR_STATE_STARTED;
 
-	AIKITDLL::LogInfo("开始监听...");
+	AIKITDLL::LogInfo("语音识别监听已成功启动");
+	AIKITDLL::LogDebug("开始监听语音输入...");
 	return 0;
 }
 

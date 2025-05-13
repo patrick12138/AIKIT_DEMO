@@ -64,6 +64,8 @@ namespace AikitWpfDemo
             {
                 resultBuilder = new StringBuilder();
             }
+            if (hasAnyNewResult)
+            {
 
             // 检查pgs格式结果
             if (NativeMethods.HasNewPgsResult())
@@ -178,6 +180,7 @@ namespace AikitWpfDemo
                         LogMessage(currentResult);
                     }
                 }
+            }
             }
 
             // 如果有新结果且设置为合并显示，则一次性输出所有结果

@@ -49,7 +49,7 @@ namespace AIKITDLL {
 		struct EsrRecognizer esr;
 
 		// 初始化语音识别器
-		errcode = EsrInit(&esr, ESR_MIC, 1);
+		errcode = EsrInit(&esr, ESR_MIC, -1);
 		if (errcode) {
 			AIKITDLL::LogError("语音识别器初始化失败，错误码: %d", errcode);
 			return errcode;
@@ -300,8 +300,8 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 
 		// 设置状态为处理中
 		AIKITDLL::esrStatus = ESR_STATUS_PROCESSING;
+		AIKITDLL::LogInfo("正在注册ESR能力回调");
 
-		AIKITDLL::LogInfo("正在注册ESR能力回调...");
 		ret = AIKIT::AIKIT_RegisterAbilityCallback(ESR_ABILITY, cbs);
 		if (ret != 0) {
 			AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);

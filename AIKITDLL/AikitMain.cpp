@@ -74,6 +74,7 @@ extern "C" {
 		int ivwResult = 0;
 		do {
 			ivwResult = TestIvw70(cbs);
+			//ivwResult = TestIvw70Microphone(cbs);
 			if (ivwResult != 0) {
 				AIKITDLL::LogWarning("TestIvw70 failed with code: %d, retrying...", ivwResult);
 				// 可选项: 等待一段时间后重试
@@ -84,6 +85,7 @@ extern "C" {
 		AIKITDLL::LogInfo("TestIvw70 succeeded, proceeding to TestEsr");
 
 		AIKITDLL::LogDebug("调用TestEsr");
+		//TestEsr(cbs);
 		TestEsrMicrophone(cbs);
 
 		// 确保关闭文件资源

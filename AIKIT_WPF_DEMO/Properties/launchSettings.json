@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "AIKIT_WPF_DEMO": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
