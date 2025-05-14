@@ -55,7 +55,7 @@ namespace AikitWpfDemo
         }        // 自动关闭弹窗的异步方法
         private async Task ShowPopupWithAutoCloseAsync(string text)
         {
-            try 
+            try
             {
                 // 如果弹窗无效或已关闭，创建新实例
                 if (_cortanaPopup == null || !_cortanaPopup.IsLoaded)
@@ -69,9 +69,9 @@ namespace AikitWpfDemo
                     _cortanaPopup.Activate();
                 }
                 _cortanaPopup.UpdateText(text);
-                
-                await Task.Delay(3000); // 等待3秒
-                
+
+                await Task.Delay(4000); // 等待3秒
+
                 // 检查弹窗是否仍然有效且可见
                 if (_cortanaPopup != null && _cortanaPopup.IsVisible)
                 {
@@ -96,9 +96,9 @@ namespace AikitWpfDemo
             {
                 resultBuilder = new StringBuilder();
             }
-          
+
             // 检查pgs格式结果
-           
+
             string currentResult1 = NativeMethods.GetLatestPgsResult();
             if (!string.IsNullOrEmpty(currentResult1) && currentResult1 != _lastPgsResult)
             {
@@ -129,48 +129,43 @@ namespace AikitWpfDemo
                     }
                 }
             }
-            
 
-            // 检查plain格式结果
-            if (NativeMethods.HasNewPlainResult())
+
+            string currentResult = NativeMethods.GetPlainResultString();
+            if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastPlainResult)
             {
-                string currentResult = NativeMethods.GetPlainResultString();
-                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastPlainResult)
-                {
-                    _lastPlainResult = currentResult;
-                    hasAnyNewResult = true;
+                _lastPlainResult = currentResult;
+                hasAnyNewResult = true;
 
-                    if (_mergeResults)
-                    {
-                        resultBuilder.AppendLine(currentResult);
-                    }
-                    else
-                    {
-                        LogMessage(currentResult);
-                    }
+                if (_mergeResults)
+                {
+                    resultBuilder.AppendLine(currentResult);
+                }
+                else
+                {
+                    LogMessage(currentResult);
                 }
             }
 
-            // 检查readable格式结果
-            if (NativeMethods.HasNewReadableResult())
-            {
-                string currentResult = NativeMethods.GetReadableResultString();
-                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastReadableResult)
-                {
-                    _lastReadableResult = currentResult;
-                    hasAnyNewResult = true;
 
-                    if (_mergeResults)
-                    {
-                        resultBuilder.AppendLine(currentResult);
-                    }
-                    else
-                    {
-                        LogMessage(currentResult);
-                    }
+
+            string currentResult2 = NativeMethods.GetReadableResultString();
+            if (!string.IsNullOrEmpty(currentResult2) && currentResult2 != _lastReadableResult)
+            {
+                _lastReadableResult = currentResult2;
+                hasAnyNewResult = true;
+
+                if (_mergeResults)
+                {
+                    resultBuilder.AppendLine(currentResult2);
+                }
+                else
+                {
+                    LogMessage(currentResult2);
                 }
             }
-            
+
+
             // 如果有新结果且设置为合并显示，则一次性输出所有结果
             if (hasAnyNewResult && _mergeResults && resultBuilder != null && resultBuilder.Length > 0)
             {
@@ -260,8 +255,7 @@ namespace AikitWpfDemo
                     string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
                     LogMessage($"检测到唤醒词: {wakeupInfo}");
 
-                    // 唤醒成功后打开弹窗，等待命令词
-                    _cortanaPopup.UpdateText("正在等待命令...");
+                    _cortanaPopup.UpdateText("你好，请问你需要做什么操作？");
                     _cortanaPopup.Show();
                     _cortanaPopup.Activate();
 

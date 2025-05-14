@@ -7,6 +7,16 @@
 #include <errno.h>
 #include <mutex> // 添加互斥锁
 
+// 声明ESRHelper中的函数 (新的签名)
+extern "C" {
+    // __declspec(dllimport) bool HasNewPlainResult(); // 已移除
+    // __declspec(dllimport) const char* GetPlainResult(); // 旧签名
+
+    // 新的 P/Invoke 兼容签名
+    __declspec(dllimport) int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult);
+    // 你可能还需要其他 Get***Result 函数的声明，如果在这里用到的话
+}
+
 // 定义事件类型常量
 enum {
 	EVT_START = 0,
@@ -47,6 +57,8 @@ namespace AIKITDLL {
 		DWORD waitres;
 		char isquit = 0;
 		struct EsrRecognizer esr;
+		DWORD startTime = GetTickCount();
+		const DWORD MAX_WAIT_TIME = 10000; // 10秒超时
 
 		// 初始化语音识别器
 		errcode = EsrInit(&esr, ESR_MIC, -1);
@@ -65,68 +77,121 @@ namespace AIKITDLL {
 			}
 		}
 
-		// 立即开始监听
 		AIKITDLL::LogInfo("开始监听语音...");
 		errcode = EsrStartListening(&esr);
 		if (errcode) {
 			AIKITDLL::LogError("开始监听失败，错误码: %d", errcode);
-			isquit = 1;
+			isquit = 1; // 标记退出
 		}
+		
+		char plainResultBuffer[8192]; // 用于接收 plain 结果的缓冲区
+		bool hasNewResult = false;
 
-		// 主循环处理事件，直到识别到命令词
 		while (!isquit) {
-			// 检查是否已经识别到命令词
-			if (esrStatus.load() == ESR_STATUS_SUCCESS && !lastEsrKeywordResult.empty()) {
-				AIKITDLL::LogInfo("已识别到命令词: %s，准备退出监听", lastEsrKeywordResult.c_str());
+			// 调用新的 GetPlainResult
+			memset(plainResultBuffer, 0, sizeof(plainResultBuffer)); // 清空缓冲区
+			hasNewResult = false; // 重置标志
+			int resultLen = GetPlainResult(plainResultBuffer, sizeof(plainResultBuffer) -1, &hasNewResult);
+
+			if (hasNewResult && resultLen > 0) {
+				// 成功获取到新的 plain 结果
+				// 注意：plainResultBuffer 现在包含的是 "plain: actual_result_json" 这样的格式
+				// 你可能需要解析掉 "plain: " 前缀
+				char* actualJson = strstr(plainResultBuffer, "plain: ");
+				if (actualJson) {
+					actualJson += strlen("plain: "); // 跳过 "plain: "
+				} else {
+					actualJson = plainResultBuffer; // 如果没有前缀，则直接使用
+				}
+				
+				AIKITDLL::LogInfo("获取到 new plain 结果: %s (长度: %d)", actualJson, resultLen);
+
+				std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+				AIKITDLL::lastEsrKeywordResult = actualJson; // 存储实际的JSON部分
+				AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
+				AIKITDLL::LogInfo("已识别到命令词: %s，准备退出监听", actualJson);
+				
 				errcode = EsrStopListening(&esr);
 				if (errcode) {
 					AIKITDLL::LogError("停止监听失败，错误码: %d", errcode);
 				}
+				isquit = 1;
+				break; 
+			} else {
+				// AIKITDLL::LogDebug("未获取到新的plain结果，或结果为空。hasNewResult: %s, resultLen: %d", hasNewResult ? "true" : "false", resultLen);
+			}
+
+			// 检查是否已经失败 (例如由其他逻辑设置)
+			if (esrStatus.load() == ESR_STATUS_FAILED) {
+				AIKITDLL::LogInfo("命令词识别已失败（由其他部分标记），准备退出监听");
+				errcode = EsrStopListening(&esr);
+				if (errcode) {
+					AIKITDLL::LogError("停止监听失败，错误码: %d", errcode);
+				}
+				isquit = 1;
+				break;
+			}
+
+			// 检查是否超时
+			if (GetTickCount() - startTime > MAX_WAIT_TIME) {
+				AIKITDLL::LogInfo("命令词识别超时，准备退出监听");
+				errcode = EsrStopListening(&esr);
+				if (errcode) {
+					AIKITDLL::LogError("停止监听失败，错误码: %d", errcode);
+				}
+				std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+				AIKITDLL::esrStatus = ESR_STATUS_FAILED;
+				AIKITDLL::lastEsrErrorInfo = "识别超时";
+				isquit = 1;
 				break;
 			}
 
 			// 等待事件，设置较短的超时时间以便定期检查识别结果
-			waitres = WaitForMultipleObjects(EVT_TOTAL, events, FALSE, 500);
+			waitres = WaitForMultipleObjects(EVT_TOTAL, events, FALSE, 200); // 缩短等待时间，更频繁检查
 			switch (waitres) {
 			case WAIT_FAILED:
 				AIKITDLL::LogError("等待事件失败，错误码: %d", GetLastError());
 				isquit = 1;
 				break;
 			case WAIT_TIMEOUT:
-				// 超时只是为了检查识别状态，不需要记录警告
+				// 超时意味着没有事件发生，循环将继续，再次尝试获取结果
 				break;
 			case WAIT_OBJECT_0 + EVT_STOP:
-				AIKITDLL::LogInfo("停止监听语音...");
+				AIKITDLL::LogInfo("接收到停止事件，停止监听语音...");
 				errcode = EsrStopListening(&esr);
 				if (errcode) {
 					AIKITDLL::LogError("停止监听失败，错误码: %d", errcode);
-					isquit = 1;
 				}
+				isquit = 1; // 标记退出
 				break;
 			case WAIT_OBJECT_0 + EVT_QUIT:
-				AIKITDLL::LogInfo("正在退出...");
-				EsrStopListening(&esr);
+				AIKITDLL::LogInfo("接收到退出事件，正在退出...");
+				EsrStopListening(&esr); // 尝试停止
 				isquit = 1;
 				break;
 			default:
+				// 其他事件
 				break;
 			}
 		}
 
 		// 清理资源
+		// ... (保持原有清理逻辑)
 		if (helper_thread != NULL) {
 			WaitForSingleObject(helper_thread, INFINITE);
 			CloseHandle(helper_thread);
 		}
 
 		for (int i = 0; i < EVT_TOTAL; ++i) {
-			if (events[i])
+			if (events[i]) {
 				CloseHandle(events[i]);
+				events[i] = NULL; // 防止重复关闭
+			}
 		}
 
 		EsrUninit(&esr);
 		AIKITDLL::LogInfo("麦克风语音识别已结束");
-		return 0;
+		return errcode; // 返回最后的错误码
 	}
 }
 
@@ -324,7 +389,6 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
 			goto exit;
 		}
-
 		// 从麦克风获取音频数据
 		AIKITDLL::LogInfo("开始从麦克风获取音频数据");
 		ret = AIKITDLL::esr_microphone(ESR_ABILITY);
@@ -334,8 +398,17 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 		}
 		else
 		{
-			AIKITDLL::LogInfo("麦克风处理成功");
-			AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
+			if (AIKITDLL::esrStatus.load() != ESR_STATUS_SUCCESS) {
+				// 如果状态仍然是处理中，但函数返回了，说明可能是超时或其他退出原因
+				if (AIKITDLL::esrStatus.load() == ESR_STATUS_PROCESSING) {
+					AIKITDLL::LogInfo("麦克风处理已结束，但未找到明确结果");
+					AIKITDLL::esrStatus = ESR_STATUS_FAILED;
+					AIKITDLL::lastEsrErrorInfo = "未找到明确的命令词结果";
+				}
+			}
+			else {
+				AIKITDLL::LogInfo("麦克风处理成功");
+			}
 		}
 	}
 	catch (const std::exception& e) {

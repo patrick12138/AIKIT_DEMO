@@ -103,8 +103,8 @@ extern "C"
 		AIKIT_Callbacks cbs = {AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError};
 
 		AIKITDLL::LogDebug("调用TestEsr");
-		TestEsr(cbs);
-		//TestEsrMicrophone(cbs);
+		//TestEsr(cbs);
+		TestEsrMicrophone(cbs);
 
 		// 清理退出操作
 		AIKIT::AIKIT_UnInit();

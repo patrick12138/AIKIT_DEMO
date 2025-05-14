@@ -45,7 +45,6 @@ namespace AIKITDLL {
 		if (output->node->key) {
 			LogInfo("OnOutput key: %s", output->node->key);
 		}
-
 		if (output->node->value) {
 			// Store result for WPF display
 			std::string resultText = std::string((char*)output->node->value);

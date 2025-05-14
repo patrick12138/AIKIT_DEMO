@@ -9,7 +9,7 @@ namespace AikitWpfDemo
         private const string DllPath = @"D:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
         #region DLL导入 - 基础功能
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] // 添加 CharSet.Ansi
         public static extern int GetPgsResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
@@ -53,40 +53,18 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetEsrErrorInfo();
 
-
+        // 更新以下结果获取函数的P/Invoke声明
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern int GetHtkResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetHtkResult();
+        public static extern int GetPlainResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetPlainResult();
+        public static extern int GetVadResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetVadResult();
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetReadableResult();
-
-        // 检查是否有新结果
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.I1)]  // 将C++ bool映射为C# bool
-        public static extern bool HasNewPgsResult();
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.I1)]
-        public static extern bool HasNewHtkResult();
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.I1)]
-        public static extern bool HasNewPlainResult();
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.I1)]
-        public static extern bool HasNewVadResult();
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.I1)]
-        public static extern bool HasNewReadableResult();
+        public static extern int GetReadableResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         //  清空所有结果缓冲区
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
@@ -166,8 +144,9 @@ namespace AikitWpfDemo
 
         public static string GetLatestPgsResult()
         {
-            StringBuilder buffer = new StringBuilder(8192);
+            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
             bool isNewResult;
+            // 调用新的P/Invoke签名
             int len = GetPgsResult(buffer, buffer.Capacity, out isNewResult);
 
             if (len > 0 && isNewResult)
@@ -175,51 +154,60 @@ namespace AikitWpfDemo
                 // 处理新结果
                 return buffer.ToString();
             }
-            return string.Empty;
+            return string.Empty; // 或者根据需要返回 null 或其他
         }
 
-        public static string GetHtkResultString()
+        // 更新以下辅助方法以使用新的P/Invoke签名
+        public static string GetHtkResultString( )
         {
-            IntPtr ptr = GetHtkResult();
-            if (ptr != IntPtr.Zero)
+            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            bool isNewResult;
+            int len = GetHtkResult(buffer, buffer.Capacity, out isNewResult);
+
+            if (len > 0) // isNewResult 条件可以由调用者判断
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+                return buffer.ToString();
             }
-            return "";
+            return string.Empty;
         }
 
         public static string GetPlainResultString()
         {
-            IntPtr ptr = GetPlainResult();
-            if (ptr != IntPtr.Zero)
+            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            bool isNewResult;
+            int len = GetPlainResult(buffer, buffer.Capacity, out isNewResult);
+
+            if (len > 0)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+                return buffer.ToString();
             }
-            return "";
+            return string.Empty;
         }
 
-        public static string GetVadResultString()
+        public static string GetVadResultString( )
         {
-            IntPtr ptr = GetVadResult();
-            if (ptr != IntPtr.Zero)
+            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            bool isNewResult;
+            int len = GetVadResult(buffer, buffer.Capacity, out isNewResult);
+
+            if (len > 0)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+                return buffer.ToString();
             }
-            return "";
+            return string.Empty;
         }
 
-        public static string GetReadableResultString()
+        public static string GetReadableResultString( )
         {
-            IntPtr ptr = GetReadableResult();
-            if (ptr != IntPtr.Zero)
+            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            bool isNewResult;
+            int len = GetReadableResult(buffer, buffer.Capacity, out isNewResult);
+
+            if (len > 0)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+                return buffer.ToString();
             }
-            return "";
+            return string.Empty;
         }
 
 

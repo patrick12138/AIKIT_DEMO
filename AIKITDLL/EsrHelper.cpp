@@ -212,35 +212,31 @@ int ESRGetRlt(AIKIT_HANDLE* handle, AIKIT_DataBuilder* dataBuilder)
 	int ret = 0;
 	AIKIT_OutputData* output = nullptr;
 	AIKIT_InputData* input_data = AIKIT_Builder::build(dataBuilder);
+	bool has_plain_result = false;  // 添加标志位判断plain结果
 
 	// 确保互斥锁已初始化
 	InitResultLock();
 
 	ret = AIKIT_Write(handle, input_data);
-	if (ret != 0)
-	{
+	if (ret != 0) {
 		AIKITDLL::LogError("AIKIT_Write 失败，错误码: %d", ret);
 		return ret;
 	}
 	ret = AIKIT_Read(handle, &output);
-	if (ret != 0)
-	{
+	if (ret != 0) {
 		AIKITDLL::LogError("AIKIT_Read 失败，错误码: %d", ret);
 		return ret;
 	}
 
-	if (output != nullptr)
-	{
+	if (output != nullptr) {
 		FILE* fsaFile = nullptr;
 		errno_t err = fopen_s(&fsaFile, "esr_result.txt", "ab");
-		if (err != 0 || fsaFile == nullptr)
-		{
+		if (err != 0 || fsaFile == nullptr) {
 			AIKITDLL::LogError("文件打开失败!");
 			return -1;
 		}
 		AIKIT_BaseData* node = output->node;
-		while (node != nullptr && node->value != nullptr)
-		{
+		while (node != nullptr && node->value != nullptr) {
 			fwrite(node->key, sizeof(char), strlen(node->key), fsaFile);
 			fwrite(": ", sizeof(char), strlen(": "), fsaFile);
 			fwrite(node->value, sizeof(char), node->len, fsaFile);
@@ -248,16 +244,19 @@ int ESRGetRlt(AIKIT_HANDLE* handle, AIKIT_DataBuilder* dataBuilder)
 
 			// 处理识别结果
 			ProcessRecognitionResult(node->key, (char*)node->value);
+			
+			// 检查是否有plain结果
+			if (strcmp(node->key, "plain") == 0 && node->value != nullptr && strlen((char*)node->value) > 0) {
+				has_plain_result = true;
+			}
 
-			if (node->status == 2)
-				is_result = true;
 			node = node->next;
 		}
 		fclose(fsaFile);
 	}
-	if (is_result)
-	{
-		is_result = false;
+	
+	// 如果有plain结果，说明识别成功
+	if (has_plain_result) {
 		return ESR_HAS_RESULT;
 	}
 
@@ -465,11 +464,6 @@ int EsrStopListening(struct EsrRecognizer* esr)
 	esr->dataBuilder->payload(aiAudio_raw);
 	AIKITDLL::LogInfo("停止监听");
 	ret = ESRGetRlt(esr->handle, esr->dataBuilder);
-	if (ret != 0 && ret != ESR_HAS_RESULT) {
-		esr_dbg("写入最后样本失败: %d", ret);
-		AIKIT_End(esr->handle);
-		return ret;
-	}
 
 	AIKIT_End(esr->handle);
 	esr->handle = NULL;
@@ -703,7 +697,6 @@ exit:
 
 // 为WPF应用提供的接口函数 - 获取各种格式的结果
 // 返回值增加长度信息,便于WPF判断
-// 修改当前的GetPgsResult函数，增加一个输出参数表示是否为新结果
 extern "C" __declspec(dllexport) int GetPgsResult(char* buffer, int bufferSize, bool* isNewResult)
 {
 	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
@@ -712,111 +705,120 @@ extern "C" __declspec(dllexport) int GetPgsResult(char* buffer, int bufferSize, 
 	// 确保临界区已初始化
 	InitResultLock();
 	if (!g_resultLockInitialized) {
-		AIKITDLL::LogError("临界区未初始化，无法安全访问共享资源");
 		return 0;
 	}
 
 	EnterCriticalSection(&g_resultLock);
-	// 先保存新结果标志
 	*isNewResult = g_hasNewPgsResult;
-	// 获取数据长度
 	int len = strlen(g_pgsResultBuffer);
 	if (len > 0) {
-		// 有数据时才进行拷贝
 		strncpy_s(buffer, bufferSize, g_pgsResultBuffer, _TRUNCATE);
 	}
-	// 最后再清除新结果标志
 	g_hasNewPgsResult = false;
 	LeaveCriticalSection(&g_resultLock);
 
 	return len;
 }
 
-extern "C" __declspec(dllexport) const char* GetHtkResult()
+extern "C" __declspec(dllexport) int GetHtkResult(char* buffer, int bufferSize, bool* isNewResult)
 {
-	static char buffer[8192] = { 0 };
-	EnterCriticalSection(&g_resultLock);
-	strcpy_s(buffer, sizeof(buffer), g_htkResultBuffer);
-	LeaveCriticalSection(&g_resultLock);
-	return buffer;
-}
+	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
+		return 0;
 
-extern "C" __declspec(dllexport) const char* GetPlainResult()
-{
-	static char buffer[8192] = { 0 };
-	EnterCriticalSection(&g_resultLock);
-	strcpy_s(buffer, sizeof(buffer), g_plainResultBuffer);
-	LeaveCriticalSection(&g_resultLock);
-	return buffer;
-}
+	InitResultLock();
+	if (!g_resultLockInitialized) {
+		return 0;
+	}
 
-extern "C" __declspec(dllexport) const char* GetVadResult()
-{
-	static char buffer[8192] = { 0 };
 	EnterCriticalSection(&g_resultLock);
-	strcpy_s(buffer, sizeof(buffer), g_vadResultBuffer);
-	LeaveCriticalSection(&g_resultLock);
-	return buffer;
-}
-
-extern "C" __declspec(dllexport) const char* GetReadableResult()
-{
-	static char buffer[8192] = { 0 };
-	EnterCriticalSection(&g_resultLock);
-	strcpy_s(buffer, sizeof(buffer), g_readableResultBuffer);
-	LeaveCriticalSection(&g_resultLock);
-	return buffer;
-}
-
-// 检查是否有新结果
-//extern "C" __declspec(dllexport) bool HasNewPgsResult()
-//{
-//	bool result = false;
-//	EnterCriticalSection(&g_resultLock);
-//	result = g_hasNewPgsResult;
-//	g_hasNewPgsResult = false;
-//	LeaveCriticalSection(&g_resultLock);
-//	return result;
-//}
-
-extern "C" __declspec(dllexport) bool HasNewHtkResult()
-{
-	bool result = false;
-	EnterCriticalSection(&g_resultLock);
-	result = g_hasNewHtkResult;
+	*isNewResult = g_hasNewHtkResult;
+	int len = strlen(g_htkResultBuffer);
+	if (len > 0) {
+		strncpy_s(buffer, bufferSize, g_htkResultBuffer, _TRUNCATE);
+	}
 	g_hasNewHtkResult = false;
 	LeaveCriticalSection(&g_resultLock);
-	return result;
+
+	return len;
 }
 
-extern "C" __declspec(dllexport) bool HasNewPlainResult()
+extern "C" __declspec(dllexport) int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult)
 {
-	bool result = false;
+	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
+		return 0;
+
+	if (reinterpret_cast<uintptr_t>(isNewResult) == 0xFFFFFFFFFFFFFFFF) {
+		return 0;
+	}
+
+	InitResultLock();
+	if (!g_resultLockInitialized) {
+		return 0;
+	}
+
 	EnterCriticalSection(&g_resultLock);
-	result = g_hasNewPlainResult;
+	*isNewResult = g_hasNewPlainResult;
+
+	int len = 0;
+	if (g_plainResultBuffer[0] != '\0') {
+		len = strlen(g_plainResultBuffer);
+		if (len > 0) {
+			strncpy_s(buffer, bufferSize, g_plainResultBuffer, _TRUNCATE);
+		}
+	} else {
+		if (bufferSize > 0) {
+			buffer[0] = '\0';
+		}
+	}
+
 	g_hasNewPlainResult = false;
 	LeaveCriticalSection(&g_resultLock);
-	return result;
+
+	return len;
 }
 
-extern "C" __declspec(dllexport) bool HasNewVadResult()
+extern "C" __declspec(dllexport) int GetVadResult(char* buffer, int bufferSize, bool* isNewResult)
 {
-	bool result = false;
+	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
+		return 0;
+
+	InitResultLock();
+	if (!g_resultLockInitialized) {
+		return 0;
+	}
+
 	EnterCriticalSection(&g_resultLock);
-	result = g_hasNewVadResult;
+	*isNewResult = g_hasNewVadResult;
+	int len = strlen(g_vadResultBuffer);
+	if (len > 0) {
+		strncpy_s(buffer, bufferSize, g_vadResultBuffer, _TRUNCATE);
+	}
 	g_hasNewVadResult = false;
 	LeaveCriticalSection(&g_resultLock);
-	return result;
+
+	return len;
 }
 
-extern "C" __declspec(dllexport) bool HasNewReadableResult()
+extern "C" __declspec(dllexport) int GetReadableResult(char* buffer, int bufferSize, bool* isNewResult)
 {
-	bool result = false;
+	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
+		return 0;
+
+	InitResultLock();
+	if (!g_resultLockInitialized) {
+		return 0;
+	}
+
 	EnterCriticalSection(&g_resultLock);
-	result = g_hasNewReadableResult;
+	*isNewResult = g_hasNewReadableResult;
+	int len = strlen(g_readableResultBuffer);
+	if (len > 0) {
+		strncpy_s(buffer, bufferSize, g_readableResultBuffer, _TRUNCATE);
+	}
 	g_hasNewReadableResult = false;
 	LeaveCriticalSection(&g_resultLock);
-	return result;
+
+	return len;
 }
 
 // 清空所有结果缓冲区
