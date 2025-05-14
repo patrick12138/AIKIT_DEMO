@@ -140,6 +140,13 @@ int CnenEsrInit()
 	GetCurrentDirectoryA(MAX_PATH, currentDir);
 	AIKITDLL::LogInfo("当前工作目录: %s", currentDir);
 
+	// 确保引擎 DLL 已加载
+	if (!AIKITDLL::EnsureEngineDllsLoaded()) {
+		AIKITDLL::LogError("引擎动态库加载失败");
+		return -1;
+	}
+	AIKITDLL::LogInfo("引擎动态库加载检查通过");
+
 	// 初始化引擎
 	AIKIT::AIKIT_ParamBuilder* engine_paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
 	if (engine_paramBuilder == nullptr) {

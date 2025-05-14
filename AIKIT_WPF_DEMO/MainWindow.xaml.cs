@@ -52,87 +52,84 @@ namespace AikitWpfDemo
             {
                 LogMessage($"识别结果监控异常: {ex.Message}");
             }
+        }        // 自动关闭弹窗的异步方法
+        private async Task ShowPopupWithAutoCloseAsync(string text)
+        {
+            try 
+            {
+                // 如果弹窗无效或已关闭，创建新实例
+                if (_cortanaPopup == null || !_cortanaPopup.IsLoaded)
+                {
+                    _cortanaPopup = new CortanaLikePopup();
+                }
+
+                if (!_cortanaPopup.IsVisible)
+                {
+                    _cortanaPopup.Show();
+                    _cortanaPopup.Activate();
+                }
+                _cortanaPopup.UpdateText(text);
+                
+                await Task.Delay(3000); // 等待3秒
+                
+                // 检查弹窗是否仍然有效且可见
+                if (_cortanaPopup != null && _cortanaPopup.IsVisible)
+                {
+                    _cortanaPopup.Hide(); // 使用Hide代替Close
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"显示弹窗时发生异常: {ex.Message}");
+                // 重置弹窗实例
+                _cortanaPopup = null;
+            }
         }
 
         // 检查和处理所有类型的新结果
         private void CheckAndProcessNewResults()
         {
-            bool hasAnyNewResult = true;
+            bool hasAnyNewResult = false;
             StringBuilder resultBuilder = null;
 
             if (_mergeResults)
             {
                 resultBuilder = new StringBuilder();
             }
-            if (hasAnyNewResult)
-            {
-
+          
             // 检查pgs格式结果
-            if (NativeMethods.HasNewPgsResult())
+           
+            string currentResult1 = NativeMethods.GetLatestPgsResult();
+            if (!string.IsNullOrEmpty(currentResult1) && currentResult1 != _lastPgsResult)
             {
-                string currentResult = NativeMethods.GetPgsResultString();
-                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastPgsResult)
-                {
-                    _lastPgsResult = currentResult;
-                    hasAnyNewResult = true;
+                _lastPgsResult = currentResult1;
+                hasAnyNewResult = true;
 
-                    if (_mergeResults)
+                if (_mergeResults)
+                {
+                    resultBuilder.AppendLine(currentResult1);
+                }
+                else
+                {
+                    LogMessage(currentResult1);
+                }
+
+                // 更新弹窗显示PGS实时结果（取最后一行，通常是最新内容）
+                string[] lines = currentResult1.Split('\n');
+                if (lines.Length > 0)
+                {
+                    string lastLine = lines[lines.Length - 1];
+                    if (lastLine.StartsWith("pgs"))
                     {
-                        resultBuilder.AppendLine(currentResult);
+                        _ = ShowPopupWithAutoCloseAsync(lastLine.Substring(4)); // 去掉"pgs："前缀
                     }
                     else
                     {
-                        LogMessage(currentResult);
-                    }
-
-                    // 更新弹窗显示PGS实时结果（取最后一行，通常是最新内容）
-                    string[] lines = currentResult.Split('\n');
-                    if (lines.Length > 0)
-                    {
-                        string lastLine = lines[lines.Length - 1];
-                        if (lastLine.StartsWith("pgs"))
-                        {
-                            // 如果弹窗未显示，先显示弹窗
-                            if (!_cortanaPopup.IsVisible)
-                            {
-                                _cortanaPopup.Show();
-                                _cortanaPopup.Activate();
-                            }
-                            _cortanaPopup.UpdateText(lastLine.Substring(4)); // 去掉"pgs："前缀
-                        }
-                        else
-                        {
-                            // 如果弹窗未显示，先显示弹窗
-                            if (!_cortanaPopup.IsVisible)
-                            {
-                                _cortanaPopup.Show();
-                                _cortanaPopup.Activate();
-                            }
-                            _cortanaPopup.UpdateText(lastLine);
-                        }
+                        _ = ShowPopupWithAutoCloseAsync(lastLine);
                     }
                 }
             }
-
-            // 检查htk格式结果
-            if (NativeMethods.HasNewHtkResult())
-            {
-                string currentResult = NativeMethods.GetHtkResultString();
-                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastHtkResult)
-                {
-                    _lastHtkResult = currentResult;
-                    hasAnyNewResult = true;
-
-                    if (_mergeResults)
-                    {
-                        resultBuilder.AppendLine(currentResult);
-                    }
-                    else
-                    {
-                        LogMessage(currentResult);
-                    }
-                }
-            }
+            
 
             // 检查plain格式结果
             if (NativeMethods.HasNewPlainResult())
@@ -141,26 +138,6 @@ namespace AikitWpfDemo
                 if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastPlainResult)
                 {
                     _lastPlainResult = currentResult;
-                    hasAnyNewResult = true;
-
-                    if (_mergeResults)
-                    {
-                        resultBuilder.AppendLine(currentResult);
-                    }
-                    else
-                    {
-                        LogMessage(currentResult);
-                    }
-                }
-            }
-
-            // 检查vad格式结果
-            if (NativeMethods.HasNewVadResult())
-            {
-                string currentResult = NativeMethods.GetVadResultString();
-                if (!string.IsNullOrEmpty(currentResult) && currentResult != _lastVadResult)
-                {
-                    _lastVadResult = currentResult;
                     hasAnyNewResult = true;
 
                     if (_mergeResults)
@@ -193,18 +170,25 @@ namespace AikitWpfDemo
                     }
                 }
             }
-            }
-
+            
             // 如果有新结果且设置为合并显示，则一次性输出所有结果
             if (hasAnyNewResult && _mergeResults && resultBuilder != null && resultBuilder.Length > 0)
             {
                 LogMessage(resultBuilder.ToString().TrimEnd());
-            }
-
-            // 确保弹窗可见
-            if (hasAnyNewResult && !_cortanaPopup.IsVisible)
+            }            // 确保弹窗可见
+            if (hasAnyNewResult)
             {
-                _cortanaPopup.ShowPopup();
+                // 如果弹窗实例无效或已关闭，创建新实例
+                if (_cortanaPopup == null || !_cortanaPopup.IsLoaded)
+                {
+                    _cortanaPopup = new CortanaLikePopup();
+                }
+
+                if (!_cortanaPopup.IsVisible)
+                {
+                    _cortanaPopup.Show();
+                    _cortanaPopup.Activate();
+                }
             }
         }
 
@@ -235,12 +219,14 @@ namespace AikitWpfDemo
                 if (_resultMonitorTimer != null && _resultMonitorTimer.IsEnabled)
                 {
                     _resultMonitorTimer.Stop();
-                }
-
-                // 清空所有结果缓冲区
+                }                // 清空所有结果缓冲区
                 //NativeMethods.ClearAllResultBuffers();
-                // 关闭弹窗
-                _cortanaPopup?.Close();
+                // 安全关闭弹窗
+                if (_cortanaPopup != null && _cortanaPopup.IsLoaded)
+                {
+                    _cortanaPopup.Hide(); // 使用Hide代替Close
+                    _cortanaPopup = null;
+                }
             }
             catch
             {

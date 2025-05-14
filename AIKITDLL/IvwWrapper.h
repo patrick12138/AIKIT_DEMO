@@ -15,7 +15,7 @@ extern "C" {
 #define IVW_ABILITY "e867a88f2" // 语音唤醒能力ID
 #define CNENIVW_ABILITY "e75f07b62" // 离线命令词识别能力ID
 
-// 语音唤醒能力初始化
+	// 语音唤醒能力初始化
 	AIKITDLL_API int Ivw70Init();
 
 	// 语音唤醒资源释放

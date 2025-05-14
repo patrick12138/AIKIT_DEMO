@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace AikitWpfDemo
 {
@@ -8,6 +9,9 @@ namespace AikitWpfDemo
         private const string DllPath = @"D:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
         #region DLL导入 - 基础功能
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetPgsResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
+
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern int InitializeSDK(string appID, string apiKey, string apiSecret, string workDir);
 
@@ -49,9 +53,7 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetEsrErrorInfo();
 
-        // 各种格式命令词识别结果接口
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetPgsResult();
+
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetHtkResult();
@@ -160,15 +162,20 @@ namespace AikitWpfDemo
         #endregion
 
         #region 辅助方法 - 各种格式识别结果转换
-        public static string GetPgsResultString()
+        
+
+        public static string GetLatestPgsResult()
         {
-            IntPtr ptr = GetPgsResult();
-            if (ptr != IntPtr.Zero)
+            StringBuilder buffer = new StringBuilder(8192);
+            bool isNewResult;
+            int len = GetPgsResult(buffer, buffer.Capacity, out isNewResult);
+
+            if (len > 0 && isNewResult)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+                // 处理新结果
+                return buffer.ToString();
             }
-            return "";
+            return string.Empty;
         }
 
         public static string GetHtkResultString()

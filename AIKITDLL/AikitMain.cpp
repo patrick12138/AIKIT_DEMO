@@ -108,8 +108,8 @@ extern "C"
 
 		// 清理退出操作
 		AIKIT::AIKIT_UnInit();
-		AIKITDLL::lastResult = "RUN StartEsrMicrophone SUCCESS!";
 		AIKITDLL::LogDebug("命令词识别启动成功\n");
+		AIKITDLL::lastResult = "SUCCESS: 命令词识别成功";
 		return 0;
 	}
 #ifdef __cplusplus

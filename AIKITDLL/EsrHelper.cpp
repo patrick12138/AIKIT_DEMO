@@ -51,12 +51,51 @@ extern "C" {
 	CRITICAL_SECTION g_resultLock;
 }
 
-// 初始化互斥锁
+// 使用全局变量跟踪初始化状态
+static bool g_resultLockInitialized = false;
+std::string UTF8ToLocalString(const char* utf8Str) {
+	if (!utf8Str) return "";
+
+	// 先转换成宽字符
+	int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8Str, -1, NULL, 0);
+	if (wlen <= 0) {
+		AIKITDLL::LogError("UTF8转换失败，错误码: %d", GetLastError());
+		return "";
+	}
+
+	std::vector<wchar_t> wstr(wlen);
+	if (MultiByteToWideChar(CP_UTF8, 0, utf8Str, -1, wstr.data(), wlen) <= 0) {
+		AIKITDLL::LogError("UTF8转宽字符失败，错误码: %d", GetLastError());
+		return "";
+	}
+
+	// 再转换成本地编码（GBK）
+	int len = WideCharToMultiByte(CP_ACP, 0, wstr.data(), -1, NULL, 0, NULL, NULL);
+	if (len <= 0) {
+		AIKITDLL::LogError("宽字符转本地编码失败，错误码: %d", GetLastError());
+		return "";
+	}
+
+	std::vector<char> str(len);
+	if (WideCharToMultiByte(CP_ACP, 0, wstr.data(), -1, str.data(), len, NULL, NULL) <= 0) {
+		AIKITDLL::LogError("宽字符转本地编码失败，错误码: %d", GetLastError());
+		return "";
+	}
+
+	return std::string(str.data());
+}
+
+// 初始化临界区锁
 void InitResultLock() {
-	static bool initialized = false;
-	if (!initialized) {
-		InitializeCriticalSection(&g_resultLock);
-		initialized = true;
+	if (!g_resultLockInitialized) {
+		__try {
+			InitializeCriticalSection(&g_resultLock);
+			g_resultLockInitialized = true;
+			AIKITDLL::LogDebug("临界区初始化成功");
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER) {
+			AIKITDLL::LogError("临界区初始化失败");
+		}
 	}
 }
 
@@ -160,6 +199,9 @@ void ProcessRecognitionResult(const char* key, const char* value) {
 		AddResult("readable", value);
 	}
 
+	// 日志记录 - 使用编码转换
+	std::string localKey = UTF8ToLocalString(key);
+	std::string localValue = UTF8ToLocalString(value);
 	// 日志记录
 	AIKITDLL::LogInfo("识别结果: %s: %s", key, value);
 }
@@ -341,7 +383,7 @@ int EsrStartListening(struct EsrRecognizer* esr)
 		AIKITDLL::LogInfo("  能力ID: %s", esr->handle->abilityID ? esr->handle->abilityID : "空");
 		AIKITDLL::LogInfo("  句柄ID: %zu", esr->handle->handleID);
 	}
-	
+
 	if (esr->state >= ESR_STATE_STARTED) {
 		AIKITDLL::LogDebug("识别器已在运行状态,无需重复启动");
 		esr_dbg("已经开始监听.");
@@ -660,13 +702,34 @@ exit:
 }
 
 // 为WPF应用提供的接口函数 - 获取各种格式的结果
-extern "C" __declspec(dllexport) const char* GetPgsResult()
+// 返回值增加长度信息,便于WPF判断
+// 修改当前的GetPgsResult函数，增加一个输出参数表示是否为新结果
+extern "C" __declspec(dllexport) int GetPgsResult(char* buffer, int bufferSize, bool* isNewResult)
 {
-	static char buffer[8192] = { 0 };
+	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
+		return 0;
+
+	// 确保临界区已初始化
+	InitResultLock();
+	if (!g_resultLockInitialized) {
+		AIKITDLL::LogError("临界区未初始化，无法安全访问共享资源");
+		return 0;
+	}
+
 	EnterCriticalSection(&g_resultLock);
-	strcpy_s(buffer, sizeof(buffer), g_pgsResultBuffer);
+	// 先保存新结果标志
+	*isNewResult = g_hasNewPgsResult;
+	// 获取数据长度
+	int len = strlen(g_pgsResultBuffer);
+	if (len > 0) {
+		// 有数据时才进行拷贝
+		strncpy_s(buffer, bufferSize, g_pgsResultBuffer, _TRUNCATE);
+	}
+	// 最后再清除新结果标志
+	g_hasNewPgsResult = false;
 	LeaveCriticalSection(&g_resultLock);
-	return buffer;
+
+	return len;
 }
 
 extern "C" __declspec(dllexport) const char* GetHtkResult()
@@ -706,15 +769,15 @@ extern "C" __declspec(dllexport) const char* GetReadableResult()
 }
 
 // 检查是否有新结果
-extern "C" __declspec(dllexport) bool HasNewPgsResult()
-{
-	bool result = false;
-	EnterCriticalSection(&g_resultLock);
-	result = g_hasNewPgsResult;
-	g_hasNewPgsResult = false;
-	LeaveCriticalSection(&g_resultLock);
-	return result;
-}
+//extern "C" __declspec(dllexport) bool HasNewPgsResult()
+//{
+//	bool result = false;
+//	EnterCriticalSection(&g_resultLock);
+//	result = g_hasNewPgsResult;
+//	g_hasNewPgsResult = false;
+//	LeaveCriticalSection(&g_resultLock);
+//	return result;
+//}
 
 extern "C" __declspec(dllexport) bool HasNewHtkResult()
 {
