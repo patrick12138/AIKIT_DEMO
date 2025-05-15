@@ -13,12 +13,10 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10" HorizontalAlignment="Left">
             <TextBlock Text="当前状态: " VerticalAlignment="Center" FontWeight="Bold"/>
             <TextBlock x:Name="StatusTextBlock" Text="空闲状态" VerticalAlignment="Center" Margin="5,0"/>
-        </StackPanel>
-
-        <!-- 中间状态显示区 -->
+        </StackPanel>        <!-- 中间状态显示区 -->
         <Border Grid.Row="1" Margin="10" BorderBrush="Gray" BorderThickness="1">
             <ScrollViewer>
-                <TextBlock x:Name="TxtLog" TextWrapping="Wrap" Margin="5"/>
+                <TextBox x:Name="TxtLog" TextWrapping="Wrap" Margin="5" IsReadOnly="True" VerticalScrollBarVisibility="Auto" BorderThickness="0"/>
             </ScrollViewer>
         </Border>
           <!-- 底部按钮区 -->
