@@ -181,6 +181,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="VoiceStateManager.cpp" />
+    <ClCompile Include="WakeupTest.cpp" />
+    <ClCompile Include="StatusMonitor.cpp" />
     <ClCompile Include="SdkHelper.cpp" />
     <ClCompile Include="winrec.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>

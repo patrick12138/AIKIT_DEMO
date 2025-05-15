@@ -26,6 +26,7 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StartWakeup();
+        #endregion
 
         #region 语音助手循环控制
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
@@ -41,8 +42,6 @@ namespace AikitWpfDemo
         public static extern IntPtr GetLastCommandResult();
         #endregion
 
-        #endregion
-
         #region 获取唤醒状态相关接口
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int GetWakeupStatus();
@@ -52,6 +51,11 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetWakeupInfoString();
+          [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr GetWakeupStatusDetails();
+        
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int TestWakeupDetection();
         #endregion
 
         #region ESR命令词识别相关接口

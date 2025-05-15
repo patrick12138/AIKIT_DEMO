@@ -26,17 +26,21 @@ extern "C" {
 
 	// 语音唤醒测试函数 - 从文件输入
 	AIKITDLL_API int IvwFromFile(const char* audioFilePath, int threshold);
-
 	// 获取当前唤醒状态 (0-未唤醒, 1-已唤醒)
 	AIKITDLL_API int GetWakeupStatus();
 
 	// 重置唤醒状态为未唤醒
 	AIKITDLL_API void ResetWakeupStatus();
+		// 获取唤醒状态的详细信息（用于调试）
+	AIKITDLL_API const char* GetWakeupStatusDetails();
 
-	// 重置唤醒状态为未唤醒
+	// 测试函数
 	AIKITDLL_API int TestIvw70(const AIKIT_Callbacks& cbs);
 
 	AIKITDLL_API int Ivw70Microphone(const AIKIT_Callbacks& cbs);
+	
+	// 测试唤醒检测功能
+	AIKITDLL_API int TestWakeupDetection();
 
 #ifdef __cplusplus
 }

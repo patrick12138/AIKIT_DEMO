@@ -146,7 +146,7 @@ namespace AIKITDLL {
 				AIKITDLL::LogInfo("ivw_microphone: 开始录音");
 
 		// 重置唤醒标志
-		wakeupFlag = 0;
+		wakeupFlag.store(0);
 		AIKITDLL::LogInfo("ivw_microphone: 已重置唤醒标志");
 
 		// 创建数据构建器
@@ -167,13 +167,11 @@ namespace AIKITDLL {
 
 		int len = 0;
 		int audio_count = 0;
-		int count = 0;
-		DWORD startTime = GetTickCount();
+		int count = 0;		DWORD startTime = GetTickCount();
 		AIKIT_DataStatus status = AIKIT_DataBegin;
 		AIKITDLL::LogInfo("ivw_microphone: 进入音频数据处理循环，超时时间: %d ms", timeoutMs);
-
 		// 循环处理音频数据直到唤醒或超时
-		while (audio_count < bufsize && wakeupFlag != 1)
+		while (audio_count < bufsize && wakeupFlag.load() != 1)
 		{
 			// 检查是否超时
 			if (timeoutMs > 0 && (GetTickCount() - startTime) > (DWORD)timeoutMs) {
@@ -182,11 +180,18 @@ namespace AIKITDLL {
 				break;
 			}
 
-			// 使用条件变量等待唤醒事件
-			if (WaitForWakeup(200)) {
+			// 方法1：使用条件变量等待唤醒事件
+			if (WaitForWakeup(100)) {
 				AIKITDLL::LogInfo("ivw_microphone: 收到唤醒通知，退出录音循环");
 				break;
 			}
+			
+			// 方法2：主动检查唤醒状态
+			if (GetWakeupStatus() == 1) {
+				AIKITDLL::LogInfo("ivw_microphone: 主动检测到唤醒状态，退出录音循环");
+				break;
+			}
+			
 			len = 10 * FRAME_LEN; // 16k音频，10帧 （时长200ms）
 
 			if (audio_count >= wHdr.dwBytesRecorded) {
@@ -231,11 +236,18 @@ namespace AIKITDLL {
 		if (wait) CloseHandle(wait);
 		if (pBuffer) free(pBuffer);
 		if (dataBuilder) delete dataBuilder;
-		if (paramBuilder) delete paramBuilder;
-		// 标记会话为非活动状态，无论成功或失败
+		if (paramBuilder) delete paramBuilder;		// 标记会话为非活动状态，无论成功或失败
 		g_ivwSessionActive.store(false);
+				// 最后一次检查唤醒状态
+		if (wakeupFlag.load() != 1) {
+			// 此时可能已经收到唤醒回调，但我们错过了，再次通过GetWakeupStatus主动检查
+			if (GetWakeupStatus() == 1) {
+				wakeupFlag.store(1);
+				AIKITDLL::LogInfo("ivw_microphone: 结束时检测到唤醒状态已设置");
+			}
+		}
 		
-		if (wakeupFlag == 1) {
+		if (wakeupFlag.load() == 1) {
 			AIKITDLL::LogInfo("ivw_microphone: 唤醒成功");
 			lastResult = "唤醒成功";
 			return 0;
@@ -297,9 +309,8 @@ namespace AIKITDLL {
 		paramBuilder->param("gramLoad", true);
 
 		LogInfo("已设置唤醒阈值: %s", thresholdParam.c_str());
-
 		// 重置唤醒标志
-		wakeupFlag = 0;
+		wakeupFlag.store(0);
 		LogInfo("已重置唤醒标志");
 		// 启动能力
 		LogInfo("正在启动能力...");
@@ -356,8 +367,7 @@ namespace AIKITDLL {
 
 		// 逐块读取并处理文件数据
 		LogInfo("开始处理音频数据...");
-		int processCount = 0;
-		while (fileSize > 0 && wakeupFlag != 1) {
+		int processCount = 0;		while (fileSize > 0 && wakeupFlag.load() != 1) {
 			readLen = fread(data, 1, sizeof(data), file);
 			dataBuilder->clear();			aiAudio_raw = AIKIT::AiAudio::get("wav")->data(data, (int)readLen)->valid();
 			dataBuilder->payload(aiAudio_raw);
@@ -402,8 +412,7 @@ namespace AIKITDLL {
 
 		// 标记会话为非活动状态，无论成功或失败
 		g_ivwSessionActive.store(false);
-
-		if (wakeupFlag == 1) {
+		if (wakeupFlag.load() == 1) {
 			LogInfo("唤醒成功");
 			lastResult = "唤醒成功";
 			return 0;

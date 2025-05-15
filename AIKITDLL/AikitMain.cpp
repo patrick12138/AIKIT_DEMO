@@ -1,5 +1,4 @@
 #include "pch.h"
-#include "Common.h"
 #include "IvwWrapper.h"
 #include <string.h>
 #include <aikit_constant.h>
@@ -38,7 +37,7 @@ int InitializeAIKitSDK()
 		.log()
 		.logLevel(LOG_LVL_INFO)
 		.logMode(2)
-		.logPath("D:\\AIKITDLL\\aikit_wpf.log");
+		.logPath("D:\\AIKITDLL\\aikit_wpf_demo.log");
 
 	// SDK初始化
 	int ret = AIKIT::AIKIT_Init();

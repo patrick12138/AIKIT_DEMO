@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading; // 添加定时器命名空间
+using System.Runtime.InteropServices; // 用于Marshal类
 using WinForms = System.Windows.Forms; // 为System.Windows.Forms创建别名
 using Microsoft.Win32;
 
@@ -307,116 +308,6 @@ namespace AikitWpfDemo
             base.OnClosed(e);
         }
 
-        // 启动唤醒测试按钮点击事件处理
-        private void BtnStartWakeup_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // 清空日志
-                TxtLog.Text = string.Empty;
-                LogMessage("开始唤醒测试...");
-
-                // 重置唤醒状态
-                NativeMethods.ResetWakeupStatus();
-
-                // 禁用按钮防止重复点击
-                BtnStartWakeup.IsEnabled = false;
-
-                // 启动唤醒测试
-                int result = NativeMethods.StartWakeup();
-                string detailedResult = NativeMethods.GetLastResultString();
-                LogMessage($"唤醒测试启动结果: {detailedResult}");
-
-                if (NativeMethods.GetWakeupStatus() == 1)
-                {
-                    string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
-                    LogMessage($"检测到唤醒词: {wakeupInfo}");
-
-                    _cortanaPopup.UpdateText("你好，请问你需要做什么操作？");
-                    _cortanaPopup.Show();
-                    _cortanaPopup.Activate();
-
-                    // 重置唤醒状态，避免重复弹窗
-                    NativeMethods.ResetWakeupStatus();
-
-                    LogMessage("已启动实时语音识别，等待用户命令...");
-                }
-                else
-                {
-                    LogMessage("未检测到唤醒词，弹窗未显示");
-                }
-
-                // 重新启用按钮
-                BtnStartWakeup.IsEnabled = true;
-            }
-            catch (Exception ex)
-            {
-                LogMessage($"启动唤醒测试时发生异常: {ex.Message}");
-                MessageBox.Show($"启动唤醒测试时发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                BtnStartWakeup.IsEnabled = true;
-
-                // 停止监控定时器
-                if (_resultMonitorTimer != null && _resultMonitorTimer.IsEnabled)
-                {
-                    _resultMonitorTimer.Stop();
-                }
-            }
-        }
-
-        // 运行完整测试并显示弹窗
-        private void BtnRunFullTest_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // 清空各种结果缓存
-                _lastPgsResult = string.Empty;
-                _lastHtkResult = string.Empty;
-                _lastPlainResult = string.Empty;
-                _lastVadResult = string.Empty;
-                _lastReadableResult = string.Empty;
-
-                // 启动识别结果监控定时器
-                if (!_resultMonitorTimer.IsEnabled)
-                {
-                    _resultMonitorTimer.Start();
-                    LogMessage("已启动实时识别结果监控");
-                }
-
-                // 禁用按钮，防止重复点击
-                BtnRunFullTest.IsEnabled = false;
-
-                // 执行测试
-                int result = NativeMethods.StartEsrMicrophone();
-
-                // 获取并记录详细结果信息
-                string detailedResult = NativeMethods.GetLastResultString();
-                LogMessage($"测试启动结果: {detailedResult}");
-
-                if (result == 0)
-                {
-                    LogMessage("测试完成，执行成功！");
-                }
-                else
-                {
-                    LogMessage($"测试失败，错误码: {result}");
-                }
-
-                // 重新启用按钮
-                BtnRunFullTest.IsEnabled = true;
-            }
-            catch (Exception ex)
-            {
-                LogMessage($"启动测试线程时发生异常: {ex.Message}");
-                MessageBox.Show($"启动测试时发生异常: {ex.Message}", "异常", MessageBoxButton.OK, MessageBoxImage.Error);
-                BtnRunFullTest.IsEnabled = true;
-
-                // 确保停止所有监控定时器
-                if (_resultMonitorTimer != null && _resultMonitorTimer.IsEnabled)
-                {
-                    _resultMonitorTimer.Stop();
-                }
-            }
-        }        // 识别结果监控定时器事件处理
         private void ResultMonitorTimer_Tick(object sender, EventArgs e)
         {
             try
@@ -676,12 +567,81 @@ namespace AikitWpfDemo
                 
                 LogMessage("语音交互资源验证通过");
                 return true;
-            }
-            catch (Exception ex)
+            }            catch (Exception ex)
             {
                 LogMessage($"验证语音资源时出错: {ex.Message}");
                 MessageBox.Show($"验证语音资源时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
+            }
+        }
+        
+        // 测试唤醒检测功能
+        private async void BtnTestWakeupDetection_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 禁用按钮，防止重复点击
+                BtnTestWakeupDetection.IsEnabled = false;
+                BtnTestWakeupDetection.Content = "测试中...";
+                
+                LogMessage("开始测试唤醒检测功能...");
+                
+                // 异步调用测试函数
+                await Task.Run(() => {
+                    int result = NativeMethods.TestWakeupDetection();
+                    Dispatcher.Invoke(() => {
+                        if (result == 1)
+                        {
+                            LogMessage("唤醒检测测试成功：成功通过多路径检测到模拟的唤醒事件");
+                            ManagePopupDisplay("唤醒检测测试成功", true);
+                        }
+                        else
+                        {
+                            LogMessage("唤醒检测测试失败：未能检测到模拟的唤醒事件");
+                            ManagePopupDisplay("唤醒检测测试失败", true);
+                        }
+                    });
+                });
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"测试唤醒检测时出错: {ex.Message}");
+                MessageBox.Show($"测试唤醒检测时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                // 恢复按钮状态
+                BtnTestWakeupDetection.IsEnabled = true;
+                BtnTestWakeupDetection.Content = "测试唤醒检测";
+            }
+        }
+        
+        // 显示唤醒状态详情
+        private void BtnShowWakeupDetails_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                LogMessage("获取唤醒状态详情...");
+                
+                // 获取唤醒状态详情
+                IntPtr detailsPtr = NativeMethods.GetWakeupStatusDetails();
+                string details = Marshal.PtrToStringAnsi(detailsPtr);
+                
+                // 格式化显示
+                string formattedDetails = "=== 唤醒状态详情 ===\n" + details.Replace("\n", "\n");
+                
+                LogMessage(formattedDetails);
+                
+                // 如果状态显示已唤醒，显示唤醒成功的提示
+                if (details.Contains("WakeupFlag: 1") || details.Contains("LastEventType: 1"))
+                {
+                    ManagePopupDisplay("当前已处于唤醒状态", true);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"获取唤醒状态详情时出错: {ex.Message}");
+                MessageBox.Show($"获取唤醒状态详情时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

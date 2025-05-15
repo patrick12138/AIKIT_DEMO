@@ -32,16 +32,27 @@ namespace AIKITDLL {
         // 记录通知事件
         LogInfo("NotifyWakeupDetected: 通知唤醒事件发生");
         g_wakeupCond.notify_all();
-    }
-    
-    // 等待唤醒事件，带超时
+    }    // 等待唤醒事件，带超时
     bool WaitForWakeup(int timeoutMs) {
         std::unique_lock<std::mutex> lock(g_wakeupMutex);
         LogInfo("WaitForWakeup: 开始等待唤醒事件，超时时间: %d ms", timeoutMs);
         
-        // 如果wakeupFlag已经为1，则不需要等待
-        if (wakeupFlag == 1) {
+        // 检查唤醒状态 - 方法1：直接检查wakeupFlag
+        if (wakeupFlag.load() == 1) {
             LogInfo("WaitForWakeup: wakeupFlag已为1，无需等待");
+            return true;
+        }
+        
+        // 检查唤醒状态 - 方法2：通过GetWakeupStatus检查
+        if (GetWakeupStatus() == 1) {
+            LogInfo("WaitForWakeup: GetWakeupStatus返回1，主动设置wakeupFlag");
+            wakeupFlag.store(1);
+            return true;
+        }
+          // 检查唤醒状态 - 方法3：检查最后事件类型
+        if (lastEventType == EVENT_WAKEUP_SUCCESS) {
+            LogInfo("WaitForWakeup: 检测到唤醒成功事件，主动设置wakeupFlag");
+            wakeupFlag.store(1);
             return true;
         }
         
@@ -49,10 +60,24 @@ namespace AIKITDLL {
         bool result = false;
         if (timeoutMs > 0) {
             result = g_wakeupCond.wait_for(lock, std::chrono::milliseconds(timeoutMs), 
-                []{ return wakeupFlag == 1; });
+                []{ 
+                    // 条件变量等待期间再次检查状态
+                    if (wakeupFlag.load() == 1 || GetWakeupStatus() == 1 || lastEventType == EVENT_WAKEUP_SUCCESS) {
+                        wakeupFlag.store(1);
+                        return true;
+                    }
+                    return false;
+                });
         } else {
-            g_wakeupCond.wait(lock, []{ return wakeupFlag == 1; });
-            result = true;
+            g_wakeupCond.wait(lock, []{ 
+                // 条件变量等待期间再次检查状态
+                if (wakeupFlag == 1 || GetWakeupStatus() == 1 || lastEventType == EVENT_WAKEUP_SUCCESS) {
+                    wakeupFlag = 1;
+                    return true;
+                }
+                return false;
+            });
+            result = (wakeupFlag == 1);
         }
         
         LogInfo("WaitForWakeup: 等待结束，唤醒状态: %d", result);

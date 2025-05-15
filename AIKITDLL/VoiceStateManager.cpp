@@ -109,16 +109,32 @@ void VoiceStateManager::TransitionToState(VOICE_ASSISTANT_STATE newState) {
 
 // 处理事件回调
 void VoiceStateManager::HandleEvent(AIKIT_EVENT_TYPE eventType, const char* result) {
-	AIKITDLL::LogDebug("处理事件: %d, 结果: %s\n", eventType, result);
+	AIKITDLL::LogDebug("处理事件: %d, 结果: %s\n", eventType, result ? result : "无");
+
+	// 增加日志，详细记录当前状态
+	//AIKITDLL::LogInfo("HandleEvent: wakeupFlag=%d", AIKITDLL::wakeupFlag);
 
 	switch (eventType) {
 	case EVENT_WAKEUP_SUCCESS:
 		// 唤醒成功，转到命令词识别状态
+		
+		// 主动设置唤醒标志位，确保状态一致性
+		AIKITDLL::wakeupFlag = 1;
+		AIKITDLL::wakeupDetected = true;
+		AIKITDLL::lastEventType = EVENT_WAKEUP_SUCCESS;
+		
+		// 状态转换
 		TransitionToState(STATE_COMMAND_LISTENING);
 		break;
 
 	case EVENT_WAKEUP_FAILED:
 		// 唤醒失败，重新回到唤醒监听状态
+		
+		// 重置唤醒标志位
+		AIKITDLL::wakeupFlag = 0;
+		AIKITDLL::wakeupDetected = false;
+		
+		// 状态转换
 		TransitionToState(STATE_WAKEUP_LISTENING);
 		break;
 
