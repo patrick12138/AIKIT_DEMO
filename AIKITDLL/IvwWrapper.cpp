@@ -563,7 +563,7 @@ int TestIvw70(const AIKIT_Callbacks& cbs)
 	return ret;
 }
 
-int TestIvw70Microphone(const AIKIT_Callbacks& cbs)
+int Ivw70Microphone(const AIKIT_Callbacks& cbs)
 {
 	AIKIT::AIKIT_ParamBuilder* paramBuilder = nullptr;
 	int ret = 0;

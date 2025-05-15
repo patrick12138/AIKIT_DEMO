@@ -162,7 +162,7 @@ void VoiceStateManager::ControlThreadProc() {
 	AIKITDLL::LogDebug("语音助手控制线程启动\n");
 	// 设置回调函数
 	AIKIT_Callbacks cbs = { AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError };
-	
+
 	// 只在线程开始时初始化一次SDK
 	bool sdkInitialized = AIKITDLL::SafeInitSDK();
 	if (!sdkInitialized) {
@@ -173,7 +173,7 @@ void VoiceStateManager::ControlThreadProc() {
 
 	// 记录唤醒功能初始化状态
 	bool wakeupInitialized = false;
-	
+
 	// 记录连续失败次数，用于错误恢复
 	int consecutiveFailures = 0;
 	const int MAX_FAILURES = 3; // 最大连续失败次数
@@ -202,7 +202,7 @@ void VoiceStateManager::ControlThreadProc() {
 					continue;
 				}
 			}
-			
+
 			AIKITDLL::LogDebug("开始启动语音唤醒...\n");
 			AIKITDLL::LogDebug("开始唤醒监听...\n");
 
@@ -212,7 +212,7 @@ void VoiceStateManager::ControlThreadProc() {
 				if (ret != 0) {
 					AIKITDLL::LogError("唤醒功能初始化失败，错误码：%d\n", ret);
 					consecutiveFailures++;
-							if (consecutiveFailures >= MAX_FAILURES) {
+					if (consecutiveFailures >= MAX_FAILURES) {
 						AIKITDLL::LogError("连续多次初始化失败，重置系统...\n");
 						// 重置SDK
 						AIKITDLL::SafeCleanupSDK();
@@ -230,14 +230,14 @@ void VoiceStateManager::ControlThreadProc() {
 			}
 
 			// 启动麦克风唤醒
-			int ret = TestIvw70Microphone(cbs);
+			int ret = Ivw70Microphone(cbs);
 			if (ret != 0) {
 				AIKITDLL::LogError("启动麦克风唤醒失败，错误码：%d\n", ret);
 				// 清理唤醒资源并标记为未初始化，以便下次重新初始化
 				Ivw70Uninit();
 				wakeupInitialized = false;
 				consecutiveFailures++;
-						if (consecutiveFailures >= MAX_FAILURES) {
+				if (consecutiveFailures >= MAX_FAILURES) {
 					AIKITDLL::LogError("连续多次启动失败，重置系统...\n");
 					// 重置SDK
 					AIKITDLL::SafeCleanupSDK();
@@ -262,19 +262,30 @@ void VoiceStateManager::ControlThreadProc() {
 				Ivw70Uninit();
 				wakeupInitialized = false;
 			}
-			
+
 			// 重置连续失败计数
 			consecutiveFailures = 0;
 		}
 		break;		case STATE_COMMAND_LISTENING:
 		{
+			if (!sdkInitialized) {
+				sdkInitialized = AIKITDLL::SafeInitSDK();
+				if (!sdkInitialized) {
+					AIKITDLL::LogError("SDK重新初始化失败，尝试恢复...\n");
+					// 回到空闲状态，避免循环
+					TransitionToState(STATE_IDLE);
+					Sleep(2000);
+					continue;
+				}
+			}
+
 			AIKITDLL::LogDebug("开始命令词识别...\n");
 
 			// 重置ESR状态
 			ResetEsrStatus();
 
 			// 启动命令词识别 - 函数没有返回值，无法直接检查成功或失败
-			TestEsrMicrophone(cbs);
+			EsrMicrophone(cbs);
 
 			// 设置命令词识别超时事件
 			HANDLE timeoutEvent = CreateWaitableTimer(NULL, TRUE, NULL);
@@ -283,7 +294,7 @@ void VoiceStateManager::ControlThreadProc() {
 				TransitionToState(STATE_WAKEUP_LISTENING);
 				continue;
 			}
-			
+
 			LARGE_INTEGER dueTime;
 			dueTime.QuadPart = -10000LL * MAX_COMMAND_WAIT_TIME; // 100纳秒为单位
 			SetWaitableTimer(timeoutEvent, &dueTime, 0, NULL, NULL, FALSE);
@@ -300,7 +311,8 @@ void VoiceStateManager::ControlThreadProc() {
 				AIKITDLL::LogWarning("命令词识别超时\n");
 				// 触发超时事件
 				HandleEvent(EVENT_ESR_TIMEOUT, "超时");
-			} else if (waitResult == WAIT_FAILED) {
+			}
+			else if (waitResult == WAIT_FAILED) {
 				AIKITDLL::LogError("等待事件失败，错误码：%d\n", GetLastError());
 				// 发生错误时，回到唤醒状态
 				TransitionToState(STATE_WAKEUP_LISTENING);
@@ -313,10 +325,10 @@ void VoiceStateManager::ControlThreadProc() {
 		case STATE_PROCESSING:
 			// 处理命令词，此处暂不实现具体逻辑
 			AIKITDLL::LogDebug("处理识别到的命令词...\n");
-			
+
 			// 模拟处理命令的过程
 			Sleep(500);
-			
+
 			// 处理完命令后回到唤醒监听状态
 			TransitionToState(STATE_WAKEUP_LISTENING);
 			break;

@@ -79,7 +79,7 @@ extern "C"
 		AIKITDLL::LogDebug("唤醒功能初始化成功\n");
 
 		// 启动麦克风唤醒
-		ret = TestIvw70Microphone(cbs);
+		ret = Ivw70Microphone(cbs);
 		//ret = TestIvw70(cbs);
 		if (ret != 0)
 		{
@@ -101,8 +101,8 @@ extern "C"
 		// 设置回调函数
 		AIKIT_Callbacks cbs = {AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError};
 
-		AIKITDLL::LogDebug("调用TestEsrMicrophone");
-		TestEsrMicrophone(cbs);
+		AIKITDLL::LogDebug("调用EsrMicrophone");
+		EsrMicrophone(cbs);
 		//TestEsr(cbs);
 
 		// 清理退出操作

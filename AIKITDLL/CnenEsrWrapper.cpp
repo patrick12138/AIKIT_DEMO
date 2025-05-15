@@ -362,7 +362,7 @@ exit:
 }
 
 // 麦克风输入的ESR测试函数
-void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
+int EsrMicrophone(const AIKIT_Callbacks& cbs)
 {
 	AIKITDLL::LogInfo("======================= ESR 麦克风测试开始 ===========================");
 
@@ -378,7 +378,7 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 		if (ret != 0) {
 			AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
 			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-			return;
+			return -1;
 		}
 		AIKITDLL::LogInfo("注册能力回调成功");
 
@@ -410,6 +410,7 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 				AIKITDLL::LogInfo("麦克风处理成功");
 			}
 		}
+		return ret;
 	}
 	catch (const std::exception& e) {
 		AIKITDLL::LogError("发生异常: %s", e.what());
@@ -423,6 +424,7 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 exit:
 	// 释放资源
 	CnenEsrUninit();
+	return -1;
 
 	AIKITDLL::LogInfo("======================= ESR 麦克风测试结束 ===========================");
 }
