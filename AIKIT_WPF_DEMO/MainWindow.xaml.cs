@@ -329,12 +329,6 @@ namespace AikitWpfDemo
                 }
             }
         }
-        // 验证语音交互所需的资源和设备
-        private bool ValidateVoiceResources()
-        {
-            // 使用环境验证器进行验证
-            return EnvironmentValidator.Instance.ValidateVoiceResources();
-        }
 
         // 测试唤醒检测功能
         private async void BtnTestWakeupDetection_Click(object sender, RoutedEventArgs e)
