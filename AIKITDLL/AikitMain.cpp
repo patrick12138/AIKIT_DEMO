@@ -80,8 +80,8 @@ extern "C"
 		AIKITDLL::LogDebug("唤醒功能初始化成功\n");
 
 		// 启动麦克风唤醒
-		//ret = TestIvw70Microphone(cbs);
-		ret = TestIvw70(cbs);
+		ret = TestIvw70Microphone(cbs);
+		//ret = TestIvw70(cbs);
 		if (ret != 0)
 		{
 			AIKITDLL::LogError("启动麦克风唤醒失败，错误码：%d\n", ret);
@@ -89,7 +89,7 @@ extern "C"
 			Ivw70Uninit();
 			return -1;
 		}
-
+		Ivw70Uninit();
 		AIKITDLL::LogDebug("语音唤醒启动成功\n");
 		AIKITDLL::lastResult = "SUCCESS: 语音唤醒已启动";
 		return 0;
@@ -103,8 +103,8 @@ extern "C"
 		AIKIT_Callbacks cbs = {AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError};
 
 		AIKITDLL::LogDebug("调用TestEsr");
-		//TestEsr(cbs);
 		TestEsrMicrophone(cbs);
+		//TestEsr(cbs);
 
 		// 清理退出操作
 		AIKIT::AIKIT_UnInit();

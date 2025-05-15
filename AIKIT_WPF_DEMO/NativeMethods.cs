@@ -27,6 +27,20 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StartWakeup();
 
+        #region 语音助手循环控制
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StartVoiceAssistantLoop();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StopVoiceAssistantLoop();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetVoiceAssistantState();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr GetLastCommandResult();
+        #endregion
+
         #endregion
 
         #region 获取唤醒状态相关接口

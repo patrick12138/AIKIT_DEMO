@@ -44,6 +44,8 @@ extern "C" {
 
 	AIKITDLL_API void TestEsrMicrophone(const AIKIT_Callbacks& cbs);
 
+	void ResetEsrStatus();
+
 #ifdef __cplusplus
 }
 #endif

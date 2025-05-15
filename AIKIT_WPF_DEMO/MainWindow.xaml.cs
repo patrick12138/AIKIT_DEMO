@@ -28,6 +28,9 @@ namespace AikitWpfDemo
 
         // 结果合并展示标志
         private bool _mergeResults = true; // 是否将所有结果合并在一起显示
+        
+        // 语音助手管理器
+        private VoiceAssistantManager _voiceManager;
 
         public MainWindow()
         {
@@ -39,51 +42,61 @@ namespace AikitWpfDemo
             _resultMonitorTimer = new DispatcherTimer();
             _resultMonitorTimer.Interval = TimeSpan.FromMilliseconds(50); // 每50ms检查一次，保证实时性
             _resultMonitorTimer.Tick += ResultMonitorTimer_Tick;
+            
+            // 初始化语音助手管理器
+            _voiceManager = VoiceAssistantManager.Instance;
+            _voiceManager.StateChanged += VoiceManager_StateChanged;
+            _voiceManager.CommandRecognized += VoiceManager_CommandRecognized;
+            
+            // 注册窗口关闭事件
+            this.Closing += MainWindow_Closing;
         }
-
-        // 识别结果监控定时器事件处理
-        private void ResultMonitorTimer_Tick(object sender, EventArgs e)
+        
+        // 窗口关闭事件
+        private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            try
+            // 停止语音助手循环
+            if (_voiceManager != null)
             {
-                CheckAndProcessNewResults();
+                _voiceManager.Stop();
             }
-            catch (Exception ex)
-            {
-                LogMessage($"识别结果监控异常: {ex.Message}");
-            }
-        }        // 自动关闭弹窗的异步方法
-        private async Task ShowPopupWithAutoCloseAsync(string text)
+        }
+        
+        // 语音助手状态变化事件处理
+        private void VoiceManager_StateChanged(object sender, VoiceAssistantStateEventArgs e)
         {
-            try
+            // 更新UI显示当前状态
+            Dispatcher.Invoke(() =>
             {
-                // 如果弹窗无效或已关闭，创建新实例
-                if (_cortanaPopup == null || !_cortanaPopup.IsLoaded)
+                switch (e.State)
                 {
-                    _cortanaPopup = new CortanaLikePopup();
+                    case VoiceAssistantManager.VoiceAssistantState.Idle:
+                        StatusTextBlock.Text = "空闲状态";
+                        break;
+                    case VoiceAssistantManager.VoiceAssistantState.WakeupListening:
+                        StatusTextBlock.Text = "等待唤醒词...";
+                        break;
+                    case VoiceAssistantManager.VoiceAssistantState.CommandListening:
+                        StatusTextBlock.Text = "正在聆听命令...";
+                        break;
+                    case VoiceAssistantManager.VoiceAssistantState.Processing:
+                        StatusTextBlock.Text = "正在处理命令...";
+                        break;
                 }
-
-                if (!_cortanaPopup.IsVisible)
-                {
-                    _cortanaPopup.Show();
-                    _cortanaPopup.Activate();
-                }
-                _cortanaPopup.UpdateText(text);
-
-                await Task.Delay(4000); // 等待3秒
-
-                // 检查弹窗是否仍然有效且可见
-                if (_cortanaPopup != null && _cortanaPopup.IsVisible)
-                {
-                    _cortanaPopup.Hide(); // 使用Hide代替Close
-                }
-            }
-            catch (Exception ex)
+            });
+        }
+        
+        // 命令识别事件处理
+        private void VoiceManager_CommandRecognized(object sender, CommandRecognizedEventArgs e)
+        {
+            Dispatcher.Invoke(() =>
             {
-                LogMessage($"显示弹窗时发生异常: {ex.Message}");
-                // 重置弹窗实例
-                _cortanaPopup = null;
-            }
+                // 记录识别到的命令
+                LogMessage($"识别到命令: {e.Command}, 成功: {e.Success}");
+                
+                // 在这里可以添加命令处理逻辑
+                // ...
+            });
         }
 
         // 检查和处理所有类型的新结果
@@ -185,9 +198,7 @@ namespace AikitWpfDemo
                     _cortanaPopup.Activate();
                 }
             }
-        }
-
-        // 记录日志到界面
+        }        // 记录日志到界面
         private void LogMessage(string message)
         {
             // 确保在UI线程上更新界面
@@ -200,6 +211,43 @@ namespace AikitWpfDemo
             TxtLog.Text += $"[{DateTime.Now:HH:mm:ss}] {message}\n";
             // 自动滚动到底部
             (TxtLog.Parent as ScrollViewer)?.ScrollToEnd();
+        }
+        
+        // 显示弹窗并在指定时间后自动关闭
+        private async Task ShowPopupWithAutoCloseAsync(string text, int autoCloseMilliseconds = 5000)
+        {
+            // 确保在UI线程上更新界面
+            if (!Dispatcher.CheckAccess())
+            {
+                await Dispatcher.InvokeAsync(() => ShowPopupWithAutoCloseAsync(text, autoCloseMilliseconds));
+                return;
+            }
+            
+            // 如果弹窗实例无效或已关闭，创建新实例
+            if (_cortanaPopup == null || !_cortanaPopup.IsLoaded)
+            {
+                _cortanaPopup = new CortanaLikePopup();
+            }
+            
+            // 更新弹窗文本并显示
+            _cortanaPopup.UpdateText(text);
+            
+            if (!_cortanaPopup.IsVisible)
+            {
+                _cortanaPopup.Show();
+                _cortanaPopup.Activate();
+            }
+            
+            // 等待指定时间后自动关闭弹窗
+            // 注意：如果在此期间有新的调用，将取消先前的自动关闭
+            await Task.Delay(autoCloseMilliseconds);
+            
+            // 检查是否仍需要关闭弹窗（可能已被新的调用取代）
+            // 这里可以添加更复杂的逻辑来决定是否关闭弹窗
+            if (_cortanaPopup != null && _cortanaPopup.IsVisible)
+            {
+                _cortanaPopup.Hide();
+            }
         }
 
         // 窗口关闭事件
@@ -338,6 +386,63 @@ namespace AikitWpfDemo
                 {
                     _resultMonitorTimer.Stop();
                 }
+            }
+        }
+
+        // 识别结果监控定时器事件处理
+        private void ResultMonitorTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                CheckAndProcessNewResults();
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"识别结果监控异常: {ex.Message}");
+            }
+        }
+        
+        // 启动语音助手循环按钮点击事件
+        private void BtnStartVoiceAssistant_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 启动语音助手循环
+                if (_voiceManager.Start())
+                {
+                    LogMessage("语音助手循环已启动");
+                    
+                    // 更新UI
+                    BtnStartVoiceAssistant.IsEnabled = false;
+                    BtnStopVoiceAssistant.IsEnabled = true;
+                }
+                else
+                {
+                    LogMessage("启动语音助手循环失败");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"启动语音助手循环异常: {ex.Message}");
+            }
+        }
+        
+        // 停止语音助手循环按钮点击事件
+        private void BtnStopVoiceAssistant_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 停止语音助手循环
+                _voiceManager.Stop();
+                LogMessage("语音助手循环已停止");
+                
+                // 更新UI
+                BtnStartVoiceAssistant.IsEnabled = true;
+                BtnStopVoiceAssistant.IsEnabled = false;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"停止语音助手循环异常: {ex.Message}");
             }
         }
     }

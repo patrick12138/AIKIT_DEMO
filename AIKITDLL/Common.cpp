@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Common.h"
 #include "IvwWrapper.h"
+#include "VoiceStateManager.h"
 #include <string.h>
 #include <aikit_constant.h>
 #include <Windows.h>
@@ -24,6 +25,7 @@ namespace AIKITDLL {
 	std::mutex logMutex; // 用于日志写入的互斥锁
 	FILE* fin = nullptr;
 	std::string wakeupInfoString; // 存储唤醒详细信息的字符串
+	AIKIT_EVENT_TYPE lastEventType = EVENT_UNKNOWN; // 最近一次事件类型
 	std::string GetCurrentTimeString() {
 		time_t now = time(nullptr);
 		struct tm tm_now;
@@ -31,9 +33,7 @@ namespace AIKITDLL {
 		char buffer[80];
 		strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_now);
 		return std::string(buffer);
-	}
-
-	void OnOutput(AIKIT_HANDLE* handle, const AIKIT_OutputData* output) {
+	}	void OnOutput(AIKIT_HANDLE* handle, const AIKIT_OutputData* output) {
 		if (!handle || !output || !output->node) {
 			LogError("OnOutput received invalid parameters");
 			return;
@@ -59,6 +59,23 @@ namespace AIKITDLL {
 				wakeupFlag = 1;  // Setting the global flag
 				wakeupInfoString = resultText; // 保存唤醒词信息到全局变量
 				LogInfo("唤醒词检测到: %s", resultText.c_str());
+				
+				// 设置唤醒成功事件类型
+				lastEventType = EVENT_WAKEUP_SUCCESS;
+				
+				// 通知状态管理器
+				if (VoiceStateManager::GetInstance()) {
+					VoiceStateManager::GetInstance()->HandleEvent(EVENT_WAKEUP_SUCCESS, resultText.c_str());
+				}
+			}
+			else if (strstr(handle->abilityID, "e75f07b62")) {  // ESR相关的abilityID
+				// 设置命令词识别成功事件类型
+				lastEventType = EVENT_ESR_SUCCESS;
+				
+				// 通知状态管理器
+				if (VoiceStateManager::GetInstance()) {
+					VoiceStateManager::GetInstance()->HandleEvent(EVENT_ESR_SUCCESS, resultText.c_str());
+				}
 			}
 
 			// If we have an open file, write to it
@@ -72,10 +89,89 @@ namespace AIKITDLL {
 				LogInfo("结果状态: 最终结果");
 			}
 		}
+	}	void OnEvent(AIKIT_HANDLE* handle, AIKIT_EVENT eventType, const AIKIT_OutputEvent* eventValue) {
+		// 记录事件信息
+		LogInfo("OnEvent abilityID: %s, eventType: %d", handle ? handle->abilityID : "NULL", eventType);
+		
+		// 尝试从eventValue中获取信息
+		const char* eventMsg = "";
+		if (eventValue && eventValue->node) {
+			eventMsg = (const char*)(eventValue->node->value);
+			LogInfo("OnEvent details: %s", eventMsg);
+		}
+		
+		// 根据不同事件类型处理
+		AIKIT_EVENT_TYPE parsedEventType = EVENT_UNKNOWN;
+				// 解析事件类型
+		if (handle && handle->abilityID) {
+			if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
+				// 唤醒相关事件
+				if (eventType == AIKIT_Event_End && wakeupDetected) {
+					parsedEventType = EVENT_WAKEUP_SUCCESS;
+					LogInfo("唤醒成功事件");
+				}
+				else if (eventType == AIKIT_Event_Error) {
+					parsedEventType = EVENT_WAKEUP_FAILED;
+					LogError("唤醒失败事件");
+				}
+			}
+			else if (strstr(handle->abilityID, "e75f07b62")) {  // ESR相关事件
+				if (eventType == AIKIT_Event_End) {
+					parsedEventType = EVENT_ESR_SUCCESS;
+					LogInfo("命令词识别成功事件");
+				}
+				else if (eventType == AIKIT_Event_Error) {
+					parsedEventType = EVENT_ESR_FAILED;
+					LogError("命令词识别失败事件");
+				}
+				else if (eventType == AIKIT_Event_VadEnd) {
+					// VAD检测到语音结束
+					LogInfo("VAD检测到语音结束");
+				}
+			}
+		}
+		
+		// 更新最后的事件类型
+		lastEventType = parsedEventType;
+				// 如果集成了VoiceStateManager，通知状态变化
+		if (parsedEventType != EVENT_UNKNOWN) {
+			// 将事件通知给VoiceStateManager
+			if (VoiceStateManager::GetInstance()) {
+				const char* resultText = eventMsg;
+				VoiceStateManager::GetInstance()->HandleEvent(parsedEventType, resultText);
+			}
+			
+			lastResult = "事件: " + std::to_string((int)parsedEventType) + " - " + eventMsg;
+		}
+		else {
+			lastResult = "事件: " + std::to_string(eventType);
+		}
 	}
-
-	void OnEvent(AIKIT_HANDLE* handle, AIKIT_EVENT eventType, const AIKIT_OutputEvent* eventValue) {
-		lastResult = "事件: " + std::to_string(eventType);
+	
+	// 事件类型解析函数
+	AIKIT_EVENT_TYPE ParseEventType(const char* key, const char* value) {
+		if (!key || !value) {
+			return EVENT_UNKNOWN;
+		}
+		
+		// 根据关键字和值来判断事件类型
+		if (strstr(key, "wake") || strstr(key, "ivw")) {
+			return EVENT_WAKEUP_SUCCESS;
+		}
+		else if (strstr(key, "error") || strstr(key, "fail")) {
+			// 根据内容进一步判断是唤醒失败还是识别失败
+			if (strstr(value, "wake") || strstr(value, "ivw")) {
+				return EVENT_WAKEUP_FAILED;
+			}
+			else {
+				return EVENT_ESR_FAILED;
+			}
+		}
+		else if (strstr(key, "esr") || strstr(key, "recognize") || strstr(key, "result")) {
+			return EVENT_ESR_SUCCESS;
+		}
+		
+		return EVENT_UNKNOWN;
 	}
 
 	void OnError(AIKIT_HANDLE* handle, int32_t err, const char* desc) {
@@ -207,7 +303,7 @@ namespace AIKITDLL {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API const char* GetLastResult()
+	const char* GetLastResult()
 	{
 		return AIKITDLL::lastResult.c_str();
 	}
@@ -219,7 +315,7 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API int GetWakeupStatus()
+	int GetWakeupStatus()
 	{
 		return AIKITDLL::wakeupFlag;
 	}
@@ -231,7 +327,7 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API void ResetWakeupStatus()
+	void ResetWakeupStatus()
 	{
 		AIKITDLL::wakeupFlag = 0;
 		AIKITDLL::wakeupDetected = false;
@@ -244,7 +340,7 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API const char* GetWakeupInfoString()
+	const char* GetWakeupInfoString()
 	{
 		return AIKITDLL::wakeupInfoString.c_str();
 	}

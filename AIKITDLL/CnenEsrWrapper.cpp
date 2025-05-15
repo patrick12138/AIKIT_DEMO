@@ -434,7 +434,7 @@ extern "C" __declspec(dllexport) int GetEsrStatus()
 }
 
 // 重置ESR状态
-extern "C" __declspec(dllexport) void ResetEsrStatus()
+ void ResetEsrStatus()
 {
 	std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
 	AIKITDLL::esrStatus = ESR_STATUS_NONE;
