@@ -212,6 +212,7 @@ namespace AikitWpfDemo
             }
         }
 
+        #region  模拟测试
         // 测试唤醒检测功能
         private async void BtnTestWakeupDetection_Click(object sender, RoutedEventArgs e)
         {
@@ -283,5 +284,6 @@ namespace AikitWpfDemo
                 MessageBox.Show($"获取唤醒状态详情时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+        #endregion
     }
 }

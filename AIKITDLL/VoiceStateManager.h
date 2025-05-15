@@ -19,6 +19,12 @@ enum VOICE_ASSISTANT_STATE {
 // 语音助手状态管理类
 class VoiceStateManager {
 private:
+    // 静态互斥锁，用于保护单例实例化
+    static std::mutex s_instanceMutex;
+    
+    // 获取状态名称的辅助函数
+    static const char* GetStateName(VOICE_ASSISTANT_STATE state);
+    
     // 当前状态
     std::atomic<VOICE_ASSISTANT_STATE> m_currentState;
     
@@ -34,11 +40,23 @@ private:
     // 状态转换事件句柄
     HANDLE m_stateChangeEvent;
     
+    // SDK初始化状态
+    std::atomic<bool> m_sdkInitialized;
+    
+    // 唤醒功能初始化状态
+    std::atomic<bool> m_wakeupInitialized;
+    
+    // 连续失败计数
+    std::atomic<int> m_consecutiveFailures;
+    
     // 内部状态转换函数
     void TransitionToState(VOICE_ASSISTANT_STATE newState);
     
     // 控制线程主函数
     void ControlThreadProc();
+    
+    // 重置SDK状态和资源
+    void ResetSDKState();
     
     // 确保单例模式
     static VoiceStateManager* s_instance;
@@ -56,7 +74,7 @@ public:
     // 开始语音助手循环
     bool StartVoiceAssistant();
     
-    // 停止语音助手循环
+    // 停止语音
     void StopVoiceAssistant();
     
     // 获取当前状态

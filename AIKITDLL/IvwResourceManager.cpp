@@ -32,7 +32,28 @@ namespace AIKITDLL {
         // 记录通知事件
         LogInfo("NotifyWakeupDetected: 通知唤醒事件发生");
         g_wakeupCond.notify_all();
-    }    // 等待唤醒事件，带超时
+    }
+    
+    // 重置所有唤醒状态标志位
+    void ResetWakeupStatus() {
+        // 记录日志
+        LogInfo("ResetWakeupStatus: 已重置所有唤醒状态标志");
+        
+        // 重置所有与唤醒相关的标志位
+        wakeupFlag = 0;
+        wakeupDetected = false;
+        lastEventType = EVENT_NONE;
+        g_ivwSessionActive.store(false);
+        
+        // 重置外部数据
+        lastResult = "";
+        
+        // 通知所有等待者
+        std::unique_lock<std::mutex> lock(g_wakeupMutex);
+        g_wakeupCond.notify_all();
+    }
+    
+    // 等待唤醒事件，带超时
     bool WaitForWakeup(int timeoutMs) {
         std::unique_lock<std::mutex> lock(g_wakeupMutex);
         LogInfo("WaitForWakeup: 开始等待唤醒事件，超时时间: %d ms", timeoutMs);
@@ -49,7 +70,8 @@ namespace AIKITDLL {
             wakeupFlag.store(1);
             return true;
         }
-          // 检查唤醒状态 - 方法3：检查最后事件类型
+        
+        // 检查唤醒状态 - 方法3：检查最后事件类型
         if (lastEventType == EVENT_WAKEUP_SUCCESS) {
             LogInfo("WaitForWakeup: 检测到唤醒成功事件，主动设置wakeupFlag");
             wakeupFlag.store(1);

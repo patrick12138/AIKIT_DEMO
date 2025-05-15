@@ -1,8 +1,9 @@
 #include "pch.h"
 #include "IvwWrapper.h"
+#include "IvwResourceManager.h"
+#include "SdkHelper.h"
 #include <atomic>
 #include <aikit_constant.h>
-#include "IvwResourceManager.h"
 namespace AIKITDLL {
 	std::atomic<int> wakeupFlag(0);
 
@@ -83,6 +84,7 @@ namespace AIKITDLL {
 
 		// 启动能力
 		AIKITDLL::LogInfo("ivw_microphone: 正在启动能力...");
+		
 		// 检查构建结果
 		auto builtParam = AIKIT::AIKIT_Builder::build(paramBuilder);
 		if (!builtParam) {
@@ -92,25 +94,59 @@ namespace AIKITDLL {
 			if (hWaveIn) waveInClose(hWaveIn);
 			if (wait) CloseHandle(wait);
 			return -1;
-		}		// 检查参数有效性
-		if (!abilityID) {
-			AIKITDLL::LogError("ivw_microphone: abilityID参数无效");
-			lastResult = "abilityID参数无效";
+		}		
+		
+	// 尝试启动能力
+	AIKITDLL::LogInfo("ivw_microphone: 正在启动能力...");
+	
+	// 检查参数和SDK状态
+	if (!abilityID) {
+		AIKITDLL::LogError("ivw_microphone: abilityID参数无效");
+		lastResult = "abilityID参数无效";
+		delete paramBuilder;
+		if (hWaveIn) waveInClose(hWaveIn);
+		if (wait) CloseHandle(wait);
+		return -1;
+	}
+	
+	// 先检查SDK状态
+	if (!AIKITDLL::isInitialized) {
+		AIKITDLL::LogError("ivw_microphone: SDK尚未初始化，先尝试初始化");
+		if (!SafeInitSDK()) {
+			AIKITDLL::LogError("ivw_microphone: SDK初始化失败");
+			lastResult = "SDK初始化失败";
 			delete paramBuilder;
 			if (hWaveIn) waveInClose(hWaveIn);
 			if (wait) CloseHandle(wait);
 			return -1;
 		}
+	}
 
-		ret = AIKIT::AIKIT_Start(abilityID, builtParam, nullptr, &handle);
-		if (ret != 0) {
-			AIKITDLL::LogError("ivw_microphone: 启动能力失败，错误码: %d", ret);
-			lastResult = "启动能力失败: " + std::to_string(ret);
-			delete paramBuilder;
-			if (hWaveIn) waveInClose(hWaveIn);
-			if (wait) CloseHandle(wait);
-			return ret;
+	// 尝试启动，如果失败且是由于会话问题，则尝试清理后重新启动
+	ret = AIKIT::AIKIT_Start(abilityID, builtParam, nullptr, &handle);
+	if (ret == 18310 || ret == 18301) { // 会话已存在或授权状态错误
+		AIKITDLL::LogWarning("ivw_microphone: 检测到会话状态错误，尝试清理并重启...");
+		// 强制清理所有相关资源
+		if (AIKIT::AIKIT_End(handle) == 0) {
+			AIKITDLL::LogInfo("ivw_microphone: 成功终止现有会话");
 		}
+		Ivw70Uninit(); // 完全清理
+		Sleep(100);    // 等待资源释放
+		Ivw70Init();   // 重新初始化
+		
+		// 重新尝试启动
+		AIKITDLL::LogInfo("ivw_microphone: 重新尝试启动能力...");
+		ret = AIKIT::AIKIT_Start(abilityID, builtParam, nullptr, &handle);
+	}
+	
+	if (ret != 0) {
+		AIKITDLL::LogError("ivw_microphone: 启动能力失败，错误码: %d", ret);
+		lastResult = "启动能力失败: " + std::to_string(ret);
+		delete paramBuilder;
+		if (hWaveIn) waveInClose(hWaveIn);
+		if (wait) CloseHandle(wait);
+		return ret;
+	}
 		
 		// 检查handle是否有效再记录日志
 		if (handle) {
@@ -258,6 +294,7 @@ namespace AIKITDLL {
 			return -1;
 		}
 	}
+
 	int ivw_file(const char* abilityID, const char* audioFilePath, int threshold)
 	{
 		// 使用互斥锁保护，确保同一时刻只有一个线程能运行此函数
@@ -496,22 +533,43 @@ int Ivw70Init()
 int Ivw70Uninit()
 {
 	if (!AIKITDLL::isInitialized) {
-		AIKITDLL::lastResult = "请先初始化SDK";
-		return -1;
+		AIKITDLL::LogWarning("Ivw70Uninit: SDK未初始化，跳过清理");
+		// 即使SDK未初始化，也要重置标志位确保一致性
+		AIKITDLL::g_ivwSessionActive.store(false);
+		AIKITDLL::lastResult = "SDK未初始化";
+		return 0;
 	}
 
 	// 尝试获取互斥锁，确保安全释放资源
 	std::lock_guard<std::mutex> lock(AIKITDLL::g_ivwMutex);
+	AIKITDLL::LogInfo("Ivw70Uninit: 开始释放唤醒资源...");
 
-	// 卸载资源
-	AIKIT::AIKIT_UnLoadData(IVW_ABILITY, "key_word", 0);
+	// 强制重置所有内部唤醒标志位
+	ResetWakeupStatus();
+	AIKITDLL::LogInfo("Ivw70Uninit: 已重置唤醒状态标志");
 
-	// 反初始化引擎
-	AIKIT::AIKIT_EngineUnInit(IVW_ABILITY);
+	// 尝试卸载资源，忽略潜在错误
+	int ret = AIKIT::AIKIT_UnLoadData(IVW_ABILITY, "key_word", 0);
+	if (ret != 0) {
+		AIKITDLL::LogWarning("Ivw70Uninit: 卸载资源异常，错误码: %d，继续清理", ret);
+	}
+
+	// 反初始化引擎，忽略潜在错误
+	ret = AIKIT::AIKIT_EngineUnInit(IVW_ABILITY);
+	if (ret != 0) {
+		AIKITDLL::LogWarning("Ivw70Uninit: 引擎反初始化异常，错误码: %d", ret);
+	}
 
 	// 释放IVW互斥资源
 	AIKITDLL::CleanupIvwResources();
+	
+	// 确保重置会话状态标志位
+	AIKITDLL::g_ivwSessionActive.store(false);
 
+	// 强制等待一小段时间，确保资源完全释放
+	Sleep(100);
+
+	AIKITDLL::LogInfo("Ivw70Uninit: 唤醒资源释放完成");
 	AIKITDLL::lastResult = "语音唤醒资源已释放";
 	return 0;
 }
@@ -579,10 +637,20 @@ int Ivw70Microphone(const AIKIT_Callbacks& cbs)
 
 	AIKITDLL::LogInfo("======================= IVW70 麦克风输入开启 ===========================");
 
-	// 检查是否已有活动会话
+	// 检查是否已有活动会话，并尝试清理相关资源
 	if (AIKITDLL::g_ivwSessionActive.load()) {
-		AIKITDLL::LogError("TestIvw70Microphone: 已有一个活动的唤醒会话，无法启动新会话");
-		return -1;
+		AIKITDLL::LogWarning("发现已有活动的唤醒会话，尝试先清理现有会话");
+		// 强制重置SDK状态，确保没有残留会话
+		Ivw70Uninit();
+		// 等待资源释放
+		Sleep(100);
+		// 重新初始化
+		int initRet = Ivw70Init();
+		if (initRet != 0) {
+			AIKITDLL::LogError("重新初始化失败，错误码: %d", initRet);
+			return initRet;
+		}
+		AIKITDLL::LogInfo("重新初始化成功");
 	}
 
 	// 注册能力回调
