@@ -2,12 +2,25 @@
 #include "IvwWrapper.h"
 #include <atomic>
 #include <aikit_constant.h>
-
+#include "IvwResourceManager.h"
 namespace AIKITDLL {
 	std::atomic<int> wakeupFlag(0);
 
 	int ivw_microphone(const char* abilityID, int threshold, int timeoutMs)
 	{
+		// 使用互斥锁保护，确保同一时刻只有一个线程能运行此函数
+		std::lock_guard<std::mutex> lock(g_ivwMutex);
+		
+		// 检查是否已有活动会话
+		if (g_ivwSessionActive.load()) {
+			AIKITDLL::LogError("ivw_microphone: 已有一个活动的唤醒会话，无法启动新会话");
+			lastResult = "已有唤醒会话运行中";
+			return -1;
+		}
+		
+		// 标记会话为活动状态
+		g_ivwSessionActive.store(true);
+
 		int ret = 0;
 		AIKIT::AIKIT_DataBuilder* dataBuilder = nullptr;
 		AIKIT_HANDLE* handle = nullptr;
@@ -130,7 +143,7 @@ namespace AIKITDLL {
 		waveInPrepareHeader(hWaveIn, &wHdr, sizeof(WAVEHDR));
 		waveInAddBuffer(hWaveIn, &wHdr, sizeof(WAVEHDR));
 		waveInStart(hWaveIn); // 开始录音
-		AIKITDLL::LogInfo("ivw_microphone: 开始录音");
+				AIKITDLL::LogInfo("ivw_microphone: 开始录音");
 
 		// 重置唤醒标志
 		wakeupFlag = 0;
@@ -157,7 +170,6 @@ namespace AIKITDLL {
 		int count = 0;
 		DWORD startTime = GetTickCount();
 		AIKIT_DataStatus status = AIKIT_DataBegin;
-
 		AIKITDLL::LogInfo("ivw_microphone: 进入音频数据处理循环，超时时间: %d ms", timeoutMs);
 
 		// 循环处理音频数据直到唤醒或超时
@@ -170,7 +182,11 @@ namespace AIKITDLL {
 				break;
 			}
 
-			Sleep(200); // 等待200ms
+			// 使用条件变量等待唤醒事件
+			if (WaitForWakeup(200)) {
+				AIKITDLL::LogInfo("ivw_microphone: 收到唤醒通知，退出录音循环");
+				break;
+			}
 			len = 10 * FRAME_LEN; // 16k音频，10帧 （时长200ms）
 
 			if (audio_count >= wHdr.dwBytesRecorded) {
@@ -216,7 +232,9 @@ namespace AIKITDLL {
 		if (pBuffer) free(pBuffer);
 		if (dataBuilder) delete dataBuilder;
 		if (paramBuilder) delete paramBuilder;
-
+		// 标记会话为非活动状态，无论成功或失败
+		g_ivwSessionActive.store(false);
+		
 		if (wakeupFlag == 1) {
 			AIKITDLL::LogInfo("ivw_microphone: 唤醒成功");
 			lastResult = "唤醒成功";
@@ -228,9 +246,21 @@ namespace AIKITDLL {
 			return -1;
 		}
 	}
-
 	int ivw_file(const char* abilityID, const char* audioFilePath, int threshold)
 	{
+		// 使用互斥锁保护，确保同一时刻只有一个线程能运行此函数
+		std::lock_guard<std::mutex> lock(g_ivwMutex);
+		
+		// 检查是否已有活动会话
+		if (g_ivwSessionActive.load()) {
+			AIKITDLL::LogError("ivw_file: 已有一个活动的唤醒会话，无法启动新会话");
+			lastResult = "已有唤醒会话运行中";
+			return -1;
+		}
+		
+		// 标记会话为活动状态
+		g_ivwSessionActive.store(true);
+
 		int ret = 0;
 		AIKIT::AIKIT_DataBuilder* dataBuilder = nullptr;
 		AIKIT_HANDLE* handle = nullptr;
@@ -365,11 +395,13 @@ namespace AIKITDLL {
 		} else {
 			LogWarning("结束处理：句柄为空");
 		}
-
 		// 清理资源
 		if (file) fclose(file);
 		if (dataBuilder) delete dataBuilder;
 		if (paramBuilder) delete paramBuilder;
+
+		// 标记会话为非活动状态，无论成功或失败
+		g_ivwSessionActive.store(false);
 
 		if (wakeupFlag == 1) {
 			LogInfo("唤醒成功");
@@ -387,6 +419,9 @@ namespace AIKITDLL {
 // 语音唤醒能力初始化，接受资源文件路径作为参数
 int Ivw70Init()
 {
+	// 初始化IVW互斥资源
+	AIKITDLL::InitIvwResources();
+
 	// 初始化阶段 - 检查参数并记录日志
 	AIKITDLL::LogInfo("开始语音唤醒引擎初始化...");
 
@@ -456,11 +491,17 @@ int Ivw70Uninit()
 		return -1;
 	}
 
+	// 尝试获取互斥锁，确保安全释放资源
+	std::lock_guard<std::mutex> lock(AIKITDLL::g_ivwMutex);
+
 	// 卸载资源
 	AIKIT::AIKIT_UnLoadData(IVW_ABILITY, "key_word", 0);
 
 	// 反初始化引擎
 	AIKIT::AIKIT_EngineUnInit(IVW_ABILITY);
+
+	// 释放IVW互斥资源
+	AIKITDLL::CleanupIvwResources();
 
 	AIKITDLL::lastResult = "语音唤醒资源已释放";
 	return 0;
@@ -472,6 +513,12 @@ int TestIvw70(const AIKIT_Callbacks& cbs)
 	int ret = 0;
 
 	AIKITDLL::LogInfo("======================= IVW70 测试开始 ===========================");
+
+	// 检查是否已有活动会话
+	if (AIKITDLL::g_ivwSessionActive.load()) {
+		AIKITDLL::LogError("TestIvw70: 已有一个活动的唤醒会话，无法启动新会话");
+		return -1;
+	}
 
 	// 注册能力回调
 	ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
@@ -522,6 +569,12 @@ int TestIvw70Microphone(const AIKIT_Callbacks& cbs)
 	int ret = 0;
 
 	AIKITDLL::LogInfo("======================= IVW70 麦克风输入开启 ===========================");
+
+	// 检查是否已有活动会话
+	if (AIKITDLL::g_ivwSessionActive.load()) {
+		AIKITDLL::LogError("TestIvw70Microphone: 已有一个活动的唤醒会话，无法启动新会话");
+		return -1;
+	}
 
 	// 注册能力回调
 	ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);

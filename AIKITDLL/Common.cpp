@@ -48,24 +48,31 @@ namespace AIKITDLL {
 		if (output->node->value) {
 			// Store result for WPF display
 			std::string resultText = std::string((char*)output->node->value);
-			lastResult = "识别结果: " + resultText;
-
-			// Log the result
+			lastResult = "识别结果: " + resultText;			// Log the result
 			LogInfo("OnOutput value: %s", resultText.c_str());
 
 			// Handle wakeup detection
 			if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
-				wakeupDetected = true;
-				wakeupFlag = 1;  // Setting the global flag
-				wakeupInfoString = resultText; // 保存唤醒词信息到全局变量
-				LogInfo("唤醒词检测到: %s", resultText.c_str());
+				// 添加线程安全保护
+				std::lock_guard<std::mutex> lock(g_ivwMutex);
 				
-				// 设置唤醒成功事件类型
-				lastEventType = EVENT_WAKEUP_SUCCESS;
-				
-				// 通知状态管理器
-				if (VoiceStateManager::GetInstance()) {
-					VoiceStateManager::GetInstance()->HandleEvent(EVENT_WAKEUP_SUCCESS, resultText.c_str());
+				// 确认是否包含关键词
+				if (strstr(resultText.c_str(), "keyword")) {
+					wakeupDetected = true;
+					wakeupFlag = 1;  // Setting the global flag
+					wakeupInfoString = resultText; // 保存唤醒词信息到全局变量
+					LogInfo("唤醒词检测到: %s", resultText.c_str());
+					
+					// 设置唤醒成功事件类型
+					lastEventType = EVENT_WAKEUP_SUCCESS;
+					
+					// 发出唤醒通知
+					NotifyWakeupDetected();
+					
+					// 通知状态管理器
+					if (VoiceStateManager::GetInstance()) {
+						VoiceStateManager::GetInstance()->HandleEvent(EVENT_WAKEUP_SUCCESS, resultText.c_str());
+					}
 				}
 			}
 			else if (strstr(handle->abilityID, "e75f07b62")) {  // ESR相关的abilityID
@@ -98,6 +105,23 @@ namespace AIKITDLL {
 		if (eventValue && eventValue->node) {
 			eventMsg = (const char*)(eventValue->node->value);
 			LogInfo("OnEvent details: %s", eventMsg);
+		}
+		
+		// 检查是否是唤醒相关事件
+		if (handle && (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY))) {
+			// 添加线程安全保护
+			std::lock_guard<std::mutex> lock(g_ivwMutex);
+			
+			// 处理具体事件类型
+			if (eventType == AIKIT_Event_Error) {
+				// 唤醒出错，设置失败事件
+				lastEventType = EVENT_WAKEUP_FAILED;
+				
+				// 通知状态管理器
+				if (VoiceStateManager::GetInstance()) {
+					VoiceStateManager::GetInstance()->HandleEvent(EVENT_WAKEUP_FAILED, eventMsg);
+				}
+			}
 		}
 		
 		// 根据不同事件类型处理

@@ -9,6 +9,10 @@
 
 // 添加要在此处预编译的标头
 #include "framework.h"
+#include <atomic>
+#include <mutex>
+#include <string>
+#include <thread>
 
 // 确保AIKIT_ERR_SPARK定义存在
 #ifndef AIKIT_ERR_SPARK

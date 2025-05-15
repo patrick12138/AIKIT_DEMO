@@ -5,6 +5,7 @@
 #include <string>
 #include <atomic>
 #include "CnenEsrWrapper.h"
+#include "IvwResourceManager.h"
 
 #ifdef __cplusplus
 extern "C" {
