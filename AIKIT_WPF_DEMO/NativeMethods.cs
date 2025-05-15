@@ -9,7 +9,7 @@ namespace AikitWpfDemo
         private const string DllPath = @"D:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
         #region DLL导入 - 基础功能
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] // 添加 CharSet.Ansi
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] 
         public static extern int GetPgsResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
@@ -18,7 +18,7 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern void CleanupSDK();
 
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr GetLastResult();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]

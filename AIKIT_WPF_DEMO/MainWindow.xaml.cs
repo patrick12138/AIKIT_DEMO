@@ -43,118 +43,6 @@ namespace AikitWpfDemo
             this.Closing += MainWindow_Closing;
         }
 
-        // 启动唤醒测试按钮点击事件处理
-        private void BtnStartWakeup_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // 清空日志
-                _logManager.ClearLog();
-                _logManager.LogMessage("开始唤醒测试...");
-
-                // 重置唤醒状态
-                NativeMethods.ResetWakeupStatus();
-
-                // 禁用按钮防止重复点击
-                BtnStartWakeup.IsEnabled = false;
-
-                // 启动唤醒测试
-                int result = NativeMethods.StartWakeup();
-                string detailedResult = NativeMethods.GetLastResultString();
-                _logManager.LogMessage($"唤醒测试启动结果: {detailedResult}");
-
-                if (NativeMethods.GetWakeupStatus() == 1)
-                {
-                    string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
-                    _logManager.LogMessage($"检测到唤醒词: {wakeupInfo}");
-
-                    // 使用弹窗管理器显示弹窗
-                    _popupManager.ManagePopupDisplay("你好，请问你需要做什么操作？", true);
-
-                    // 重置唤醒状态，避免重复弹窗
-                    NativeMethods.ResetWakeupStatus();
-
-                    _logManager.LogMessage("已启动实时语音识别，等待用户命令...");
-                }
-                else
-                {
-                    _logManager.LogMessage("未检测到唤醒词，弹窗未显示");
-                }
-
-                // 重新启用按钮
-                BtnStartWakeup.IsEnabled = true;
-            }
-            catch (Exception ex)
-            {
-                _logManager.LogMessage($"启动唤醒测试时发生异常: {ex.Message}");
-                MessageBox.Show($"启动唤醒测试时发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                BtnStartWakeup.IsEnabled = true;
-
-                // 确保清理资源
-                try
-                {
-                    _resultMonitor.Stop();
-                }
-                catch
-                {
-                    // 忽略清理过程中的异常
-                }
-            }
-        }
-
-        // 运行完整测试并显示弹窗
-        private void BtnRunFullTest_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // 清空日志
-                _logManager.ClearLog();
-                _logManager.LogMessage("开始运行完整测试...");
-
-                // 禁用按钮，防止重复点击
-                BtnRunFullTest.IsEnabled = false;
-
-                // 启动结果监控
-                _resultMonitor.Start();
-                _logManager.LogMessage("已启动实时识别结果监控");
-
-                // 执行测试
-                int result = NativeMethods.StartEsrMicrophone();
-
-                // 获取并记录详细结果信息
-                string detailedResult = NativeMethods.GetLastResultString();
-                _logManager.LogMessage($"测试启动结果: {detailedResult}");
-
-                if (result == 0)
-                {
-                    _logManager.LogMessage("测试完成，执行成功！");
-                }
-                else
-                {
-                    _logManager.LogMessage($"测试失败，错误码: {result}");
-                }
-
-                // 重新启用按钮
-                BtnRunFullTest.IsEnabled = true;
-            }
-            catch (Exception ex)
-            {
-                _logManager.LogMessage($"启动测试时发生异常: {ex.Message}");
-                MessageBox.Show($"启动测试时发生异常: {ex.Message}", "异常", MessageBoxButton.OK, MessageBoxImage.Error);
-                BtnRunFullTest.IsEnabled = true;
-
-                // 确保停止所有监控
-                try
-                {
-                    _resultMonitor.Stop();
-                }
-                catch
-                {
-                    // 忽略清理过程中的异常
-                }
-            }
-        }
-
         // 窗口关闭事件
         private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
@@ -231,12 +119,6 @@ namespace AikitWpfDemo
                 // 清空日志并准备启动
                 _logManager.ClearLog();
                 _logManager.LogMessage("开始启动语音交互循环...");
-
-                // 验证语音资源
-                //if (!ValidateVoiceResources())
-                //{
-                //    return; // 验证失败，不继续执行
-                //}
 
                 // 禁用启动按钮，启用停止按钮
                 BtnStartVoiceAssistant.IsEnabled = false;

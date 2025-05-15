@@ -21,10 +21,6 @@
         </Border>
           <!-- 底部按钮区 -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10" HorizontalAlignment="Center">
-            <!-- 原按钮 -->
-            <Button x:Name="BtnStartWakeup" Content="唤醒窗口" Width="100" Margin="5" Click="BtnStartWakeup_Click"/>
-            <Button x:Name="BtnRunFullTest" Content="命令词识别" Width="100" Margin="5" Click="BtnRunFullTest_Click"/>
-            
             <!-- 唤醒测试按钮 -->
             <Rectangle Width="1" Fill="Gray" Margin="10,0"/>
             <Button x:Name="BtnTestWakeupDetection" Content="测试唤醒检测" Width="120" Margin="5" Click="BtnTestWakeupDetection_Click"/>
