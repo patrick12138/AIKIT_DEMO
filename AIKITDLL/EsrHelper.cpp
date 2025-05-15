@@ -820,20 +820,3 @@ extern "C" __declspec(dllexport) int GetReadableResult(char* buffer, int bufferS
 
 	return len;
 }
-
-// 清空所有结果缓冲区
-extern "C" __declspec(dllexport) void ClearAllResultBuffers()
-{
-	EnterCriticalSection(&g_resultLock);
-	memset(g_pgsResultBuffer, 0, sizeof(g_pgsResultBuffer));
-	memset(g_htkResultBuffer, 0, sizeof(g_htkResultBuffer));
-	memset(g_plainResultBuffer, 0, sizeof(g_plainResultBuffer));
-	memset(g_vadResultBuffer, 0, sizeof(g_vadResultBuffer));
-	memset(g_readableResultBuffer, 0, sizeof(g_readableResultBuffer));
-	g_hasNewPgsResult = false;
-	g_hasNewHtkResult = false;
-	g_hasNewPlainResult = false;
-	g_hasNewVadResult = false;
-	g_hasNewReadableResult = false;
-	LeaveCriticalSection(&g_resultLock);
-}

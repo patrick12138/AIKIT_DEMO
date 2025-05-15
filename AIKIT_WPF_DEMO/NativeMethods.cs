@@ -9,15 +9,15 @@ namespace AikitWpfDemo
         private const string DllPath = @"D:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
         #region DLL导入 - 基础功能
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] 
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] // 添加 CharSet.Ansi
         public static extern int GetPgsResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern int InitializeSDK();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void CleanupSDK();
-
+        public static extern void CleanupSDK();        
+        
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr GetLastResult();
 
@@ -51,7 +51,8 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetWakeupInfoString();
-          [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+          
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetWakeupStatusDetails();
         
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
@@ -103,7 +104,7 @@ namespace AikitWpfDemo
                 {
                     byte[] buffer = new byte[len];
                     Marshal.Copy(ptr, buffer, 0, len);
-                    // 用UTF-8解码，防止中文乱码
+                    // 用UTF-8解码，确保中文等字符正确显示
                     string result = System.Text.Encoding.UTF8.GetString(buffer);
                     return result;
                 }
@@ -158,8 +159,6 @@ namespace AikitWpfDemo
         #endregion
 
         #region 辅助方法 - 各种格式识别结果转换
-        
-
         public static string GetLatestPgsResult()
         {
             StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小

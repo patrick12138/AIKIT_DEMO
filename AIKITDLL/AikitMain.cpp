@@ -3,6 +3,7 @@
 #include <string.h>
 #include <aikit_constant.h>
 #include <Windows.h>
+
 int InitializeAIKitSDK()
 {
 	// 设置需要使用的能力ID (唤醒和合成能力)
