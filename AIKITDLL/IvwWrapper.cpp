@@ -57,9 +57,39 @@ namespace AIKITDLL {
 		paramBuilder->param("gramLoad", true);
 		AIKITDLL::LogInfo("ivw_microphone: 已设置唤醒阈值: %s", thresholdParam.c_str());
 
+		// 确保引擎 DLL 已加载
+		if (!AIKITDLL::EnsureEngineDllsLoaded()) {
+			AIKITDLL::LogError("ivw_microphone: 引擎动态库加载失败");
+			lastResult = "引擎动态库加载失败";
+			delete paramBuilder;
+			if (hWaveIn) waveInClose(hWaveIn);
+			if (wait) CloseHandle(wait);
+			return -1;
+		}
+		AIKITDLL::LogInfo("ivw_microphone: 引擎动态库加载检查通过");
+
 		// 启动能力
 		AIKITDLL::LogInfo("ivw_microphone: 正在启动能力...");
-		ret = AIKIT::AIKIT_Start(abilityID, AIKIT::AIKIT_Builder::build(paramBuilder), nullptr, &handle);
+		// 检查构建结果
+		auto builtParam = AIKIT::AIKIT_Builder::build(paramBuilder);
+		if (!builtParam) {
+			AIKITDLL::LogError("ivw_microphone: 参数构建结果无效");
+			lastResult = "参数构建结果无效";
+			delete paramBuilder;
+			if (hWaveIn) waveInClose(hWaveIn);
+			if (wait) CloseHandle(wait);
+			return -1;
+		}		// 检查参数有效性
+		if (!abilityID) {
+			AIKITDLL::LogError("ivw_microphone: abilityID参数无效");
+			lastResult = "abilityID参数无效";
+			delete paramBuilder;
+			if (hWaveIn) waveInClose(hWaveIn);
+			if (wait) CloseHandle(wait);
+			return -1;
+		}
+
+		ret = AIKIT::AIKIT_Start(abilityID, builtParam, nullptr, &handle);
 		if (ret != 0) {
 			AIKITDLL::LogError("ivw_microphone: 启动能力失败，错误码: %d", ret);
 			lastResult = "启动能力失败: " + std::to_string(ret);
@@ -68,7 +98,13 @@ namespace AIKITDLL {
 			if (wait) CloseHandle(wait);
 			return ret;
 		}
-		AIKITDLL::LogInfo("ivw_microphone: 能力启动成功，句柄: %p", handle);
+		
+		// 检查handle是否有效再记录日志
+		if (handle) {
+			AIKITDLL::LogInfo("ivw_microphone: 能力启动成功，句柄: %p", handle);
+		} else {
+			AIKITDLL::LogWarning("ivw_microphone: 能力启动成功，但句柄为空");
+		}
 
 		// 分配音频缓冲区
 		bufsize = 1024 * 500; // 开辟适当大小的内存存储音频数据
@@ -140,11 +176,17 @@ namespace AIKITDLL {
 			if (audio_count >= wHdr.dwBytesRecorded) {
 				len = 0;
 				status = AIKIT_DataEnd;
-			}
-
-			dataBuilder->clear();
+			}			dataBuilder->clear();
 			aiAudio_raw = AIKIT::AiAudio::get("wav")->data((const char*)&pBuffer[audio_count], len)->valid();
 			dataBuilder->payload(aiAudio_raw);
+			
+			// 检查handle是否有效
+			if (!handle) {
+				AIKITDLL::LogError("ivw_microphone: 写入数据失败：句柄无效");
+				lastResult = "写入数据失败: 句柄无效";
+				break;
+			}
+			
 			ret = AIKIT::AIKIT_Write(handle, AIKIT::AIKIT_Builder::build(dataBuilder));
 			if (ret != 0) {
 				AIKITDLL::LogError("ivw_microphone: 写入数据失败，错误码: %d", ret);
@@ -229,9 +271,16 @@ namespace AIKITDLL {
 		// 重置唤醒标志
 		wakeupFlag = 0;
 		LogInfo("已重置唤醒标志");
-
 		// 启动能力
 		LogInfo("正在启动能力...");
+		// 检查参数有效性
+		if (!abilityID) {
+			LogError("abilityID参数无效");
+			lastResult = "abilityID参数无效";
+			delete paramBuilder;
+			return -1;
+		}
+		
 		ret = AIKIT::AIKIT_Start(abilityID, AIKIT::AIKIT_Builder::build(paramBuilder), nullptr, &handle);
 		if (ret != 0) {
 			LogError("启动能力失败，错误码: %d", ret);
@@ -239,7 +288,13 @@ namespace AIKITDLL {
 			delete paramBuilder;
 			return ret;
 		}
-		LogInfo("能力启动成功，句柄: %p", handle);
+		
+		// 检查handle是否有效再记录日志
+		if (handle) {
+			LogInfo("能力启动成功，句柄: %p", handle);
+		} else {
+			LogWarning("能力启动成功，但句柄为空");
+		}
 
 		// 打开音频文件
 		LogInfo("正在打开音频文件: %s", audioFilePath);
@@ -274,10 +329,16 @@ namespace AIKITDLL {
 		int processCount = 0;
 		while (fileSize > 0 && wakeupFlag != 1) {
 			readLen = fread(data, 1, sizeof(data), file);
-			dataBuilder->clear();
-
-			aiAudio_raw = AIKIT::AiAudio::get("wav")->data(data, (int)readLen)->valid();
+			dataBuilder->clear();			aiAudio_raw = AIKIT::AiAudio::get("wav")->data(data, (int)readLen)->valid();
 			dataBuilder->payload(aiAudio_raw);
+			
+			// 检查handle是否有效
+			if (!handle) {
+				LogError("写入数据失败：句柄无效");
+				lastResult = "写入数据失败: 句柄无效";
+				break;
+			}
+			
 			ret = AIKIT::AIKIT_Write(handle, AIKIT::AIKIT_Builder::build(dataBuilder));
 			if (ret != 0) {
 				LogError("写入数据失败，错误码: %d", ret);
@@ -291,7 +352,6 @@ namespace AIKITDLL {
 				LogInfo("已处理 %d 个音频块...", processCount);
 			}
 		}
-
 		// 结束处理
 		LogInfo("音频处理完成，结束处理...");
 		if (handle) {
@@ -302,6 +362,8 @@ namespace AIKITDLL {
 			else {
 				LogInfo("结束处理成功");
 			}
+		} else {
+			LogWarning("结束处理：句柄为空");
 		}
 
 		// 清理资源

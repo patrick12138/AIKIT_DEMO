@@ -13,7 +13,7 @@ namespace AikitWpfDemo
         public static extern int GetPgsResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern int InitializeSDK(string appID, string apiKey, string apiSecret, string workDir);
+        public static extern int InitializeSDK();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern void CleanupSDK();

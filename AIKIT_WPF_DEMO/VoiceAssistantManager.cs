@@ -110,8 +110,7 @@ namespace AikitWpfDemo
             
             return true;
         }
-        
-        /// <summary>
+          /// <summary>
         /// 停止语音助手循环
         /// </summary>
         public void Stop()
@@ -149,6 +148,46 @@ namespace AikitWpfDemo
             
             int state = NativeMethods.GetVoiceAssistantState();
             return (VoiceAssistantState)state;
+        }
+        
+        /// <summary>
+        /// 切换到唤醒监听状态
+        /// </summary>
+        public void TransitionToWakeupListening()
+        {
+            if (!_isRunning)
+            {
+                return;
+            }
+            
+            // 手动设置状态
+            _lastState = VoiceAssistantState.WakeupListening;
+            
+            // 触发状态变化事件
+            OnStateChanged(VoiceAssistantState.WakeupListening);
+            
+            // 处理UI更新
+            HandleStateChange(VoiceAssistantState.WakeupListening);
+        }
+        
+        /// <summary>
+        /// 切换到命令词识别状态
+        /// </summary>
+        public void TransitionToCommandListening()
+        {
+            if (!_isRunning)
+            {
+                return;
+            }
+            
+            // 手动设置状态
+            _lastState = VoiceAssistantState.CommandListening;
+            
+            // 触发状态变化事件
+            OnStateChanged(VoiceAssistantState.CommandListening);
+            
+            // 处理UI更新
+            HandleStateChange(VoiceAssistantState.CommandListening);
         }
         
         /// <summary>
@@ -205,41 +244,80 @@ namespace AikitWpfDemo
                 }
             });
         }
-        
-        /// <summary>
+          /// <summary>
         /// 状态监控定时器事件处理
         /// </summary>
         private void StateMonitorTimer_Tick(object sender, EventArgs e)
         {
-            // 获取当前状态
-            VoiceAssistantState currentState = GetCurrentState();
-            
-            // 检查状态是否变化
-            if (currentState != _lastState)
+            try
             {
-                // 状态变化，处理UI更新
-                HandleStateChange(currentState);
+                // 获取当前状态
+                VoiceAssistantState currentState = GetCurrentState();
                 
-                // 更新上一次状态
-                _lastState = currentState;
+                // 检查状态是否变化
+                if (currentState != _lastState)
+                {
+                    // 状态变化，处理UI更新
+                    HandleStateChange(currentState);
+                    
+                    // 更新上一次状态
+                    _lastState = currentState;
+                    
+                    // 触发状态变化事件
+                    OnStateChanged(currentState);
+                }
                 
-                // 触发状态变化事件
-                OnStateChanged(currentState);
+                // 获取最新命令结果
+                string commandResult = NativeMethodsExtensions.GetLastCommandResultString();
+                if (!string.IsNullOrEmpty(commandResult) && 
+                    currentState == VoiceAssistantState.CommandListening && 
+                    commandResult.StartsWith("识别结果:"))
+                {
+                    // 提取实际命令词
+                    string command = commandResult.Substring("识别结果: ".Length).Trim();
+                    
+                    // 更新弹窗显示
+                    ShowPopup($"命令: {command}");
+                    
+                    // 触发命令识别事件
+                    OnCommandRecognized(command, true);
+                }
+                
+                // 检查唤醒和ESR状态
+                int wakeupStatus = NativeMethods.GetWakeupStatus();
+                if (wakeupStatus == 1 && currentState == VoiceAssistantState.WakeupListening)
+                {
+                    // 获取唤醒词信息
+                    string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
+                    System.Diagnostics.Debug.WriteLine($"检测到唤醒词: {wakeupInfo}");
+                    
+                    // 重置唤醒状态，避免重复响应
+                    NativeMethods.ResetWakeupStatus();
+                    
+                    // 切换到命令词识别状态
+                    TransitionToCommandListening();
+                }
+                
+                int esrStatus = NativeMethods.GetEsrStatus();
+                if (esrStatus == 1 && currentState == VoiceAssistantState.CommandListening)
+                {
+                    string esrResult = NativeMethods.GetEsrKeywordResultString();
+                    System.Diagnostics.Debug.WriteLine($"命令词识别完成: {esrResult}");
+                    
+                    // 重置ESR状态
+                    NativeMethods.ResetEsrStatus();
+                    
+                    // 切换回唤醒监听状态（延迟3秒，让用户看到结果）
+                    Task.Run(async () =>
+                    {
+                        await Task.Delay(3000);
+                        TransitionToWakeupListening();
+                    });
+                }
             }
-              // 获取最新命令结果
-            string commandResult = NativeMethodsExtensions.GetLastCommandResultString();
-            if (!string.IsNullOrEmpty(commandResult) && 
-                currentState == VoiceAssistantState.CommandListening && 
-                commandResult.StartsWith("识别结果:"))
+            catch (Exception ex)
             {
-                // 提取实际命令词
-                string command = commandResult.Substring("识别结果: ".Length).Trim();
-                
-                // 更新弹窗显示
-                ShowPopup($"命令: {command}");
-                
-                // 触发命令识别事件
-                OnCommandRecognized(command, true);
+                System.Diagnostics.Debug.WriteLine($"状态监控异常: {ex.Message}");
             }
         }
         

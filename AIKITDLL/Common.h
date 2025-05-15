@@ -3,6 +3,7 @@
 #include "aikit_biz_api.h"
 #include "aikit_biz_config.h"
 #include <string>
+#include <atomic>
 #include "CnenEsrWrapper.h"
 
 #ifdef __cplusplus
@@ -21,7 +22,7 @@ extern "C" {
 #endif
 
 	// 初始化SDK并配置回调函数
-	AIKITDLL_API int InitializeSDK(const char* appID, const char* apiKey, const char* apiSecret, const char* workDir);
+	AIKITDLL_API int InitializeAIKitSDK();
 
 	// 清理SDK资源
 	AIKITDLL_API void CleanupSDK();

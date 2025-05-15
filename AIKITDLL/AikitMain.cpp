@@ -4,62 +4,61 @@
 #include <string.h>
 #include <aikit_constant.h>
 #include <Windows.h>
+int InitializeAIKitSDK()
+{
+	// 设置需要使用的能力ID (唤醒和合成能力)
+	const char* ability_id = "e867a88f2;e75f07b62";
+
+	if (strlen(ability_id) == 0)
+	{
+		AIKITDLL::LogError("ability_id is empty!!\n");
+		AIKITDLL::lastResult = "ERROR: Ability ID is empty. Please provide valid ability IDs.";
+		return -1;
+	}
+
+	// 输出详细日志信息
+	AIKITDLL::LogDebug("开始初始化AIKIT SDK基础功能组件...\n");
+
+	// 设置关键参数
+	const char* appID = "80857b22";
+	const char* apiSecret = "ZDkyM2RkZjcyYTZmM2VjMDM0MzVmZDJl";
+	const char* apiKey = "f27d0261fb5fa1733b7e9a2190006aec";
+	const char* workDir = ".";
+
+	// 配置并设置参数
+	auto config = AIKIT::AIKIT_Configurator::builder()
+		.app()
+		.appID(appID)
+		.apiSecret(apiSecret)
+		.apiKey(apiKey)
+		.workDir(workDir)
+		.auth()
+		.authType(0)
+		.ability(ability_id)
+		.log()
+		.logLevel(LOG_LVL_INFO)
+		.logMode(2)
+		.logPath("D:\\AIKITDLL\\aikit_wpf.log");
+
+	// SDK初始化
+	int ret = AIKIT::AIKIT_Init();
+	if (ret != 0)
+	{
+		AIKITDLL::LogError("AIKIT_Init failed, error code: %d\n", ret);
+		AIKITDLL::lastResult = "ERROR: AIKIT initialization failed with code: " + std::to_string(ret);
+		return -1;
+	}
+
+	AIKITDLL::LogDebug("AIKIT SDK初始化成功，开始初始化功能组件...\n");
+	AIKITDLL::lastResult = "INFO: AIKIT初始化成功！";
+
+	return 0;
+}
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-	AIKITDLL_API int InitializeAIKitSDK()
-	{
-		// 设置需要使用的能力ID (唤醒和合成能力)
-		const char *ability_id = "e867a88f2;e75f07b62";
-
-		if (strlen(ability_id) == 0)
-		{
-			AIKITDLL::LogError("ability_id is empty!!\n");
-			AIKITDLL::lastResult = "ERROR: Ability ID is empty. Please provide valid ability IDs.";
-			return -1;
-		}
-
-		// 输出详细日志信息
-		AIKITDLL::LogDebug("开始初始化AIKIT SDK基础功能组件...\n");
-
-		// 设置关键参数
-		const char *appID = "80857b22";
-		const char *apiSecret = "ZDkyM2RkZjcyYTZmM2VjMDM0MzVmZDJl";
-		const char *apiKey = "f27d0261fb5fa1733b7e9a2190006aec";
-		const char *workDir = ".";
-
-		// 配置并设置参数
-		auto config = AIKIT::AIKIT_Configurator::builder()
-						  .app()
-						  .appID(appID)
-						  .apiSecret(apiSecret)
-						  .apiKey(apiKey)
-						  .workDir(workDir)
-						  .auth()
-						  .authType(0)
-						  .ability(ability_id)
-						  .log()
-						  .logLevel(LOG_LVL_INFO)
-						  .logMode(2)
-						  .logPath("D:\\AIKITDLL\\aikit_wpf.log");
-
-		// SDK初始化
-		int ret = AIKIT::AIKIT_Init();
-		if (ret != 0)
-		{
-			AIKITDLL::LogError("AIKIT_Init failed, error code: %d\n", ret);
-			AIKITDLL::lastResult = "ERROR: AIKIT initialization failed with code: " + std::to_string(ret);
-			return -1;
-		}
-
-		AIKITDLL::LogDebug("AIKIT SDK初始化成功，开始初始化功能组件...\n");
-		AIKITDLL::lastResult = "INFO: AIKIT初始化成功！";
-
-		return 0;
-	}
-
 	AIKITDLL_API int StartWakeup()
 	{
 		InitializeAIKitSDK();
@@ -102,7 +101,7 @@ extern "C"
 		// 设置回调函数
 		AIKIT_Callbacks cbs = {AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError};
 
-		AIKITDLL::LogDebug("调用TestEsr");
+		AIKITDLL::LogDebug("调用TestEsrMicrophone");
 		TestEsrMicrophone(cbs);
 		//TestEsr(cbs);
 
