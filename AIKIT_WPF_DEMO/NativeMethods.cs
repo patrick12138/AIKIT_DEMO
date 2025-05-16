@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace AikitWpfDemo
 {
@@ -19,14 +20,19 @@ namespace AikitWpfDemo
         public static extern void CleanupSDK();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetLastResult();
-
+        public static extern IntPtr GetLastResult();        
+        
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int StartEsrMicrophone();
+        public static extern int StartEsrMicrophone();        
+        
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StopEsrMicrophone();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StartWakeup();
 
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StopWakeupDetection();
         #endregion
 
         #region 获取唤醒状态相关接口
@@ -211,6 +217,33 @@ namespace AikitWpfDemo
         }
 
 
+        #endregion
+
+        #region 安全停止ESR麦克风
+        /// <summary>
+        /// 安全地停止 ESR 麦克风
+        /// </summary>
+        /// <returns>0表示成功，其他值表示错误码</returns>
+        public static int SafelyStopEsrMicrophone()
+        {
+            try
+            {
+                // 等待一小段时间确保其他操作完成
+                Thread.Sleep(100);
+                
+                // 调用底层停止函数
+                int result = StopEsrMicrophone();
+                
+                // 再等待一小段时间确保完全停止
+                Thread.Sleep(100);
+                
+                return result;
+            }
+            catch (Exception)
+            {
+                return -1; // 返回通用错误码
+            }
+        }
         #endregion
     }
 }

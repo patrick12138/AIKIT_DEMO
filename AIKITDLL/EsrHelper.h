@@ -61,6 +61,13 @@ extern "C" {
 
 	// 从文件获取ESR结果
 	AIKITDLL_API int EsrFromFile(const char* abilityID, const char* audio_path, int fsa_count, long* readLen);
+
+	/**
+	 * @brief 停止ESR麦克风录音
+	 * @param esr ESR识别器对象
+	 * @return 0表示成功，其他值表示错误码
+	 */
+	AIKITDLL_API int StopEsrMicrophone(struct EsrRecognizer* esr);
 #ifdef __cplusplus
 }
 #endif

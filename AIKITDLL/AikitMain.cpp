@@ -4,6 +4,7 @@
 #include <string.h>
 #include <aikit_constant.h>
 #include <Windows.h>
+#include "EsrHelper.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -80,8 +81,8 @@ extern "C"
 		AIKITDLL::LogDebug("唤醒功能初始化成功\n");
 
 		// 启动麦克风唤醒
-		//ret = TestIvw70Microphone(cbs);
-		ret = TestIvw70(cbs);
+		ret = TestIvw70Microphone(cbs);
+		//ret = TestIvw70(cbs);
 		if (ret != 0)
 		{
 			AIKITDLL::LogError("启动麦克风唤醒失败，错误码：%d\n", ret);
@@ -108,10 +109,10 @@ extern "C"
 
 		// 清理退出操作
 		AIKIT::AIKIT_UnInit();
-		AIKITDLL::LogDebug("命令词识别启动成功\n");
-		AIKITDLL::lastResult = "SUCCESS: 命令词识别成功";
+		AIKITDLL::LogDebug("命令词识别启动成功\n");		AIKITDLL::lastResult = "SUCCESS: 命令词识别成功";
 		return 0;
 	}
+
 #ifdef __cplusplus
 }
 #endif

@@ -495,6 +495,55 @@ int EsrWriteAudioData(struct EsrRecognizer* esr, char* data, unsigned int len)
 	return 0;
 }
 
+int StopEsrMicrophone(struct EsrRecognizer* esr)
+{
+    if (!esr) {
+        AIKITDLL::LogError("ESR识别器对象为空");
+        return E_SR_INVAL;
+    }
+
+    // 检查当前状态
+    if (esr->state < ESR_STATE_STARTED) {
+        AIKITDLL::LogDebug("ESR麦克风未启动或已停止");
+        return 0;
+    }
+
+    // 检查录音设备是否存在
+    if (!esr->recorder) {
+        AIKITDLL::LogDebug("没有活动的录音设备");
+        return 0;
+    }
+
+    AIKITDLL::LogDebug("正在停止ESR麦克风...");
+    AIKITDLL::LogInfo("停止前状态 - 状态:%d, 音频源:%d, 音频状态:%d", 
+        esr->state, esr->aud_src, esr->audio_status);
+    
+    // 停止录音
+    int ret = stop_record(esr->recorder);
+    if (ret != 0) {
+        AIKITDLL::LogError("停止录音失败，错误码: %d", ret);
+        return E_SR_RECORDFAIL;
+    }
+
+    // 等待录音完全停止，设置超时时间为5秒
+    wait_for_rec_stop(esr->recorder, 5000);
+    
+    // 检查是否成功停止
+    if (!is_record_stopped(esr->recorder)) {
+        AIKITDLL::LogError("等待录音停止超时");
+        return E_SR_RECORDFAIL;
+    }
+    
+    // 更新状态
+    esr->state = ESR_STATE_INIT;
+    esr->audio_status = AIKIT_DataEnd;
+    
+    AIKITDLL::LogDebug("ESR麦克风已停止");
+    AIKITDLL::LogInfo("停止后状态 - 状态:%d, 音频源:%d, 音频状态:%d", 
+        esr->state, esr->aud_src, esr->audio_status);
+    return 0;
+}
+
 void EsrUninit(struct EsrRecognizer* esr)
 {
 	if (esr->recorder) {
