@@ -44,7 +44,7 @@ extern "C"
 						  .log()
 						  .logLevel(LOG_LVL_INFO)
 						  .logMode(2)
-						  .logPath("D:\\AIKITDLL\\aikit_wpf.log");
+						  .logPath("C:\\AIKITDLL\\aikit_wpf.log");
 
 		// SDK初始化
 		int ret = AIKIT::AIKIT_Init();

@@ -89,7 +89,7 @@ namespace AIKITDLL {
 	// 将日志写入文件
 	void WriteToLogFile(const std::string& level, const std::string& message) {
 		std::lock_guard<std::mutex> lock(logMutex);
-		std::ofstream logFile("D:\\AIKITDLL\\aikit_wpf.log", std::ios::app);
+		std::ofstream logFile("C:\\AIKITDLL\\aikit_wpf.log", std::ios::app);
 		if (logFile.is_open()) {
 			logFile << GetCurrentTimeString() << " [" << level << "] " << message << std::endl;
 			logFile.close();
@@ -147,7 +147,7 @@ namespace AIKITDLL {
 	bool EnsureEngineDllsLoaded() {
 		// 获取当前程序架构
 #ifdef _WIN64
-		const char* libsDir = "D:\\AIKITDLL\\libs\\64";
+		const char* libsDir = "C:\\AIKITDLL\\libs\\64";
 #else
 		const char* libsDir = ".\\libs\\32";
 #endif

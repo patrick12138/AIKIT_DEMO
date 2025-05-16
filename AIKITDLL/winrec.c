@@ -431,16 +431,24 @@ int create_recorder(struct recorder ** out_rec,
 				void* user_cb_para)
 {
 	struct recorder * myrec;
+	*out_rec = NULL; // 初始化，以防万一
+
 	myrec = (struct recorder *)malloc(sizeof(struct recorder));
-	if(!myrec)
+	if(!myrec) {
+		printf("WINREC_LOG: create_recorder - malloc failed!\\n"); // 已有的日志
+		// *out_rec 已经因为上面的初始化为 NULL，或者在这里再次明确设置
+		// *out_rec = NULL; // 确保在失败时输出参数为 NULL
 		return -RECORD_ERR_MEMFAIL;
+	}
 
 	memset(myrec, 0, sizeof(struct recorder));
 	myrec->on_data_ind = on_data_ind;
 	myrec->user_cb_para = user_cb_para;
 	myrec->state = RECORD_STATE_CREATED;
 
+	printf("WINREC_LOG: create_recorder called. Callback: %p, UserData: %p\n", on_data_ind, user_cb_para);
 	*out_rec = myrec;
+	printf("WINREC_LOG: create_recorder returning rec = %p\n", (void*)myrec);
 	return 0;
 }
 
@@ -450,6 +458,7 @@ void destroy_recorder(struct recorder *rec)
 		return;
 
 	free(rec);
+	printf("WINREC_LOG: destroy_recorder - rec %p freed.\n", (void*)rec);
 }
 
 int open_recorder(struct recorder * rec, unsigned int dev, WAVEFORMATEX * fmt)
@@ -463,6 +472,7 @@ int open_recorder(struct recorder * rec, unsigned int dev, WAVEFORMATEX * fmt)
 	ret = open_recorder_internal(rec, dev, fmt);
 	if(ret == 0)
 		rec->state = RECORD_STATE_READY;
+	printf("WINREC_LOG: open_recorder called. rec = %p, dev_id = %u\n", (void*)rec, dev);
 	return 0;
 
 }
@@ -477,6 +487,7 @@ void close_recorder(struct recorder *rec)
 	close_recorder_internal(rec);
 
 	rec->state = RECORD_STATE_CREATED;	
+	printf("WINREC_LOG: close_recorder - rec->state set to RECORD_STATE_CREATED (%d)\n", rec->state);
 }
 
 int start_record(struct recorder * rec)
@@ -492,29 +503,49 @@ int start_record(struct recorder * rec)
 	ret = start_record_internal((HWAVEIN)rec->wavein_hdl, (WAVEHDR*)rec->bufheader, rec->bufcount);
 	if(ret == 0)
 		rec->state = RECORD_STATE_RECORDING;
+	printf("WINREC_LOG: start_record called. rec = %p\n", (void*)rec);
 	return ret;
 }
 
 int stop_record(struct recorder * rec)
 {
 	int ret;
-	if(rec == NULL)
-		return -RECORD_ERR_INVAL;
-	if( rec->state < RECORD_STATE_RECORDING)
-		return 0;
+	printf("WINREC_LOG: stop_record called. rec = %p\n", (void*)rec);
 
+	if(rec == NULL) {
+		printf("WINREC_LOG: stop_record - rec is NULL. Returning -RECORD_ERR_INVAL.\n");
+		return -RECORD_ERR_INVAL;
+	}
+	printf("WINREC_LOG: stop_record - rec is NOT NULL. About to access rec->state. Current rec->state (expected) = %d, rec->wavein_hdl (expected) = %p\n", rec->state, (void*)rec->wavein_hdl);
+
+	if( rec->state < RECORD_STATE_RECORDING) {
+		printf("WINREC_LOG: stop_record - rec->state (%d) < RECORD_STATE_RECORDING. Returning 0.\n", rec->state);
+		return 0;
+	}
+
+	printf("WINREC_LOG: stop_record - rec->state is %d. Setting to RECORD_STATE_STOPPING.\n", rec->state);
 	rec->state = RECORD_STATE_STOPPING;
+
+	printf("WINREC_LOG: stop_record - Calling stop_record_internal with rec->wavein_hdl = %p\n", (void*)rec->wavein_hdl);
 	ret = stop_record_internal((HWAVEIN)rec->wavein_hdl);
-	if(ret == 0) {		
+	printf("WINREC_LOG: stop_record - stop_record_internal returned %d.\n", ret);
+
+	if(ret == 0) {
 		rec->state = RECORD_STATE_READY;
+		printf("WINREC_LOG: stop_record - stop_record_internal successful. rec->state set to RECORD_STATE_READY (%d).\n", rec->state);
+	} else {
+		printf("WINREC_LOG: stop_record - stop_record_internal failed. ret = %d. rec->state remains RECORD_STATE_STOPPING (%d).\n", ret, rec->state);
 	}
 	return ret;
 }
 
 int is_record_stopped(struct recorder *rec)
 {
-	if(rec->state == RECORD_STATE_RECORDING)
-		return 0;
-
+	printf("WINREC_LOG: is_record_stopped called. rec = %p\n", (void*)rec);
+	if (rec == NULL) {
+		printf("WINREC_LOG: is_record_stopped - rec is NULL. Returning 1 (true, considered stopped).\n");
+		return 1;
+	}
+	printf("WINREC_LOG: is_record_stopped - rec is NOT NULL. rec->state = %d\n", rec->state);
 	return is_stopped_internal(rec);
 }

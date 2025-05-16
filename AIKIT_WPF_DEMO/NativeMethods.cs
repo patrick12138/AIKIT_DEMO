@@ -7,7 +7,7 @@ namespace AikitWpfDemo
 {
     internal static class NativeMethods
     {
-        private const string DllPath = @"D:\AIKITDLL\x64\Debug\AIKITDLL.dll";
+        private const string DllPath = @"C:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
         #region DLL导入 - 基础功能
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] // 添加 CharSet.Ansi

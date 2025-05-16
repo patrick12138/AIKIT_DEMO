@@ -36,9 +36,6 @@ namespace AikitWpfDemo
         private bool _recognitionCompleted = false;
         private string _lastHandledResult = string.Empty;
 
-        // 跟踪唤醒句柄的字段
-        private int _currentWakeupThreshold = 900; // 默认唤醒阈值
-
         public MainWindow()
         {
             InitializeComponent();
@@ -51,7 +48,7 @@ namespace AikitWpfDemo
             _resultMonitorTimer.Tick += ResultMonitorTimer_Tick;
 
             // 启动自动语音循环流程（Loaded事件）
-            Loaded += async (s, e) => await StartAutoVoiceLoop();
+            //Loaded += async (s, e) => await StartAutoVoiceLoop();
         }
 
         // 识别结果监控定时器事件处理
@@ -324,7 +321,7 @@ namespace AikitWpfDemo
         }
 
         // 运行完整测试并显示弹窗
-        private void BtnRunFullTest_Click(object sender, RoutedEventArgs e)
+        private void BtnStartEsr_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -381,52 +378,31 @@ namespace AikitWpfDemo
         // 自动语音循环流程
         private async Task StartAutoVoiceLoop()
         {
-            if (_autoLoopRunning) return;
+            if (_autoLoopRunning)
+            {
+                LogMessage("命令词识别自动循环已在运行中。");
+                return;
+            }
             _autoLoopRunning = true;
-            LogMessage("命令词识别自动循环已启动...");            while (_autoLoopRunning)
+            LogMessage("命令词识别自动循环已启动...");
+
+            while (_autoLoopRunning)
             {
                 try
                 {
-                    LogMessage("开始新的语音循环...");
+                    LogMessage("开始新一轮命令词识别...");
 
-                    // 1. 完全重置所有识别相关状态
-                    _recognitionCompleted = false;
-                    _lastHandledResult = string.Empty;
+                    // 1. 重置结果缓存
                     _lastPlainResult = string.Empty;
                     _lastPgsResult = string.Empty;
                     _lastHtkResult = string.Empty;
                     _lastVadResult = string.Empty;
                     _lastReadableResult = string.Empty;
-                    _lastHandledPgsResult = string.Empty;                    // 停止可能运行中的识别进程
-                    try 
-                    {
-                        // 先停止定时器，避免在停止过程中继续处理数据
-                        if (_resultMonitorTimer.IsEnabled)
-                            _resultMonitorTimer.Stop();
+                    _lastHandledPgsResult = string.Empty;
+                    _lastHandledResult = string.Empty; // 用于在此循环中跟踪已处理的普通结果
 
-                        // 确保按正确的顺序停止
-                        if (_engineInitialized)
-                        {
-                            LogMessage("正在安全停止ESR麦克风...");
-                            // 先停止唤醒检测
-                            NativeMethods.StopWakeupDetection();
-                            
-                            // 等待一小段时间确保唤醒检测完全停止
-                            await Task.Delay(100);
-                            
-                            // 再停止ESR麦克风
-                            var stopResult = NativeMethods.StopEsrMicrophone();
-                            if (stopResult != 0)
-                            {
-                                LogMessage($"停止ESR麦克风时出现错误，错误码: {stopResult}");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        LogMessage($"停止识别进程时发生异常: {ex.Message}");
-                        // 继续执行，不要中断主循环
-                    }
+                    // 确保任何先前的识别已停止且状态干净
+                    // await SafelyStopRecognitionAsync(); // 这将停止定时器、ESR，并设置 _engineInitialized = false
 
                     // 2. 重置并隐藏弹窗
                     if (_cortanaPopup != null)
@@ -434,168 +410,190 @@ namespace AikitWpfDemo
                         _cortanaPopup.RecognizedText = string.Empty;
                         if (_cortanaPopup.IsVisible)
                             _cortanaPopup.Hide();
-                    }                    // 3. 开始语音唤醒检测
-                    LogMessage("启动语音唤醒检测...");
-                    int wakeupResult = NativeMethods.StartWakeup();
-                    if (wakeupResult != 0)
-                    {
-                        LogMessage($"启动语音唤醒检测失败，错误码: {wakeupResult}");
-                        await Task.Delay(1000);
-                        continue;
                     }
-                    LogMessage("语音唤醒检测已启动，等待唤醒词...");
+                    _popupCloseCts?.Cancel(); // 取消任何待处理的弹窗自动关闭任务
 
-                    // 4. 启动识别结果监控定时器
+                    // 3. 开始命令词识别 (ESR)
+                    LogMessage("尝试启动ESR麦克风进行命令词识别...");
+                    int esrStartResult = NativeMethods.StartEsrMicrophone();
+                    string esrStartDetails = NativeMethods.GetLastResultString(); // 启动后立即获取详细信息
+                    LogMessage($"ESR麦克风启动结果: {esrStartResult}, 详情: {esrStartDetails}");
+
+                    if (esrStartResult != 0)
+                    {
+                        LogMessage($"启动ESR麦克风失败 (错误码: {esrStartResult}). 2秒后重试...");
+                        // _engineInitialized 应该已由 SafelyStopRecognitionAsync 或此处失败处理设为 false
+                        await Task.Delay(2000);
+                        continue; // 进入下一次主循环迭代
+                    }
+                    _engineInitialized = true; // 成功启动，标记引擎已初始化
+
+                    // 4. 启动识别结果监控定时器 (如果未运行)
                     if (!_resultMonitorTimer.IsEnabled)
-                        _resultMonitorTimer.Start();                    // 5. 等待唤醒词检测
-                    LogMessage("等待用户说出唤醒词...");
-                    bool isWoken = false;
-                    var wakeupStart = DateTime.Now;
-                    int wakeupTimeoutMs = 0; // 设置为0表示持续等待，直到检测到唤醒词
-
-                    while (!isWoken && _autoLoopRunning)
                     {
-                        // 检查是否检测到唤醒词
-                        if (NativeMethods.GetWakeupStatus() == 1)
-                        {
-                            isWoken = true;
-                            string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
-                            LogMessage($"检测到唤醒词: {wakeupInfo}");
-
-                            // 停止唤醒检测
-                            NativeMethods.StopWakeupDetection();
-
-                            // 开始命令词识别
-                            LogMessage("开始命令词识别...");
-                            int esrResult = NativeMethods.StartEsrMicrophone();
-                            string detailedEsrResult = NativeMethods.GetLastResultString();
-                            LogMessage($"命令词识别启动结果: {esrResult}, 详情: {detailedEsrResult}");
-
-                            // 显示唤醒成功的弹窗
-                            await Dispatcher.InvokeAsync(() =>
-                            {
-                                if (_cortanaPopup == null || !_cortanaPopup.IsLoaded)
-                                {
-                                    _cortanaPopup = new CortanaLikePopup();
-                                }
-                                _cortanaPopup.UpdateText("已识别到唤醒词，请说出您的指令");
-                                if (!_cortanaPopup.IsVisible)
-                                {
-                                    _cortanaPopup.Show();
-                                    _cortanaPopup.Activate();
-                                }
-                            });                            // 6. 等待命令词识别结果
-                            var commandStart = DateTime.Now;
-                            var commandTimeoutMs = 10000; // 10秒超时
-                            bool hasCommandResult = false;
-
-                            while ((DateTime.Now - commandStart).TotalMilliseconds < commandTimeoutMs && !hasCommandResult)
-                            {
-                                CheckAndProcessNewResults();
-
-                                if (!string.IsNullOrEmpty(_lastPlainResult))
-                                {
-                                    hasCommandResult = true;
-                                    await Dispatcher.InvokeAsync(() =>
-                                    {
-                                        string displayText = _lastPlainResult;
-                                        _cortanaPopup.UpdateText($"已识别到命令: {displayText}");
-                                    });
-
-                                    // 显示识别结果4秒
-                                    await Task.Delay(4000);
-
-                                    await Dispatcher.InvokeAsync(() =>
-                                    {
-                                        if (_cortanaPopup != null && _cortanaPopup.IsVisible)
-                                            _cortanaPopup.Hide();
-                                    });
-
-                                    break;
-                                }
-
-                                await Task.Delay(50);
-                            }                            // 结束命令词识别
-                            int stopResult = NativeMethods.SafelyStopEsrMicrophone();
-                            if (stopResult != 0)
-                            {
-                                LogMessage($"停止ESR麦克风时出现错误，错误码: {stopResult}");
-                            }
-                            
-                            if (!hasCommandResult)
-                            {
-                                LogMessage("未识别到有效命令，超时");
-                            }
-                            else
-                            {
-                                LogMessage("命令词识别完成");
-                            }
-                            
-                            break; // 退出唤醒检测循环
-                        }
-                        
-                        await Task.Delay(100); // 降低CPU占用
+                        _resultMonitorTimer.Start();
+                        LogMessage("识别结果监控定时器已启动。");
                     }
 
-                    // 7. 短暂延迟后开始下一轮
-                    await Task.Delay(1000);
+                    // 6. 等待命令词识别结果或超时
+                    var commandStartTime = DateTime.Now;
+                    var commandTimeout = TimeSpan.FromSeconds(11); // 例如：10秒超时
+                    bool commandProcessed = false;
+
+                    while (_autoLoopRunning && (DateTime.Now - commandStartTime) < commandTimeout)
+                    {
+                        // _resultMonitorTimer 调用 CheckAndProcessNewResults, 后者更新 _lastPlainResult 等
+                        if (!string.IsNullOrEmpty(_lastPlainResult) && _lastPlainResult != _lastHandledResult)
+                        {
+                            string currentCommand = _lastPlainResult;
+                            _lastHandledResult = currentCommand; // 标记为本轮已处理
+                            commandProcessed = true;
+
+                            LogMessage($"识别到命令: {currentCommand}");
+
+                            // 显示命令并自动隐藏弹窗
+                            _popupCloseCts?.Cancel(); // 取消之前的自动关闭任务
+                            _popupCloseCts = new CancellationTokenSource();
+                            var displayToken = _popupCloseCts.Token;
+
+                            await Dispatcher.InvokeAsync(async () =>
+                            {
+                                if (_cortanaPopup == null || !_cortanaPopup.IsLoaded) _cortanaPopup = new CortanaLikePopup();
+                                _cortanaPopup.UpdateText($"命令: {currentCommand}");
+                                if (!_cortanaPopup.IsVisible) _cortanaPopup.Show(); // 确保可见
+
+                                try
+                                {
+                                    await Task.Delay(4000, displayToken); // 显示4秒
+                                    if (!displayToken.IsCancellationRequested && _cortanaPopup != null && _cortanaPopup.IsVisible)
+                                    {
+                                        _cortanaPopup.Hide();
+                                    }
+                                }
+                                catch (TaskCanceledException)
+                                {
+                                    LogMessage("命令结果弹窗显示被取消。");
+                                }
+                            });
+                            break; // 退出命令等待循环
+                        }
+                        await Task.Delay(100); // 轮询间隔
+                    }
+
+                    // 7. 命令尝试后处理 (已处理或超时)
+                    if (!commandProcessed && _autoLoopRunning)
+                    {
+                        LogMessage("命令识别超时或未获得有效命令。");
+                        // 如果“请说出您的指令...”弹窗仍显示，则隐藏它
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            if (_cortanaPopup != null && _cortanaPopup.IsVisible)
+                            {
+                                // 简单起见，如果此循环未处理命令，则隐藏弹窗
+                                _cortanaPopup.Hide();
+                            }
+                        });
+                    }
+
+                    // ESR 和定时器将在下一次迭代开始时由 SafelyStopRecognitionAsync 停止。
+                    // 如果循环继续，则无需在此处显式停止它们。
+
+                    // 8. 下一轮迭代前的延迟 (如果循环仍处于活动状态)
+                    if (_autoLoopRunning)
+                    {
+                        LogMessage("本轮命令识别结束，1秒后开始下一轮...");
+                        await Task.Delay(1000);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    LogMessage($"循环过程中发生异常: {ex.Message}");
-                    await Task.Delay(1000); // 发生异常时等待1秒后继续
+                    LogMessage($"命令词识别主循环发生严重异常: {ex.Message}");
+                    _engineInitialized = false; // 确保引擎状态在出错时重置
+                    //await SafelyStopRecognitionAsync(); // 尝试清理
+
+                    if (_autoLoopRunning)
+                    {
+                        LogMessage("异常后等待3秒重试...");
+                        await Task.Delay(1000); // 发生严重错误后延迟更长时间
+                    }
                 }
-            }
+            } // 结束 while (_autoLoopRunning)
+
+            // 循环已请求停止或因错误退出
+            LogMessage("命令词识别自动循环正在停止...");
+            //await SafelyStopRecognitionAsync(); // 对引擎和定时器进行最终清理
+
+            // 最终的弹窗清理
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _popupCloseCts?.Cancel();
+                if (_cortanaPopup != null && _cortanaPopup.IsVisible)
+                {
+                    _cortanaPopup.Hide();
+                }
+            });
+            LogMessage("命令词识别自动循环已完全停止。");
+            _autoLoopRunning = false; // 确保标志为false
         }
 
-        // 安全停止 ESR 和唤醒检测的方法
+        // 安全停止 ESR 和唤醒检测的方法 (更新后也管理 _engineInitialized)
         private async Task SafelyStopRecognitionAsync()
         {
-            try 
+            try
             {
                 // 先停止定时器，避免在停止过程中继续处理数据
                 if (_resultMonitorTimer.IsEnabled)
                 {
                     _resultMonitorTimer.Stop();
+                    LogMessage("结果监控定时器已在安全停止过程中停止。");
                 }
 
-                // 确保按正确的顺序停止
-                if (_engineInitialized)
+                if (_engineInitialized) // 仅当引擎被认为已初始化时才尝试停止
                 {
-                    LogMessage("正在安全停止语音识别...");
-                    
-                    // 先停止唤醒检测
+                    LogMessage("正在安全停止语音识别引擎...");
+
+                    // 停止唤醒检测 (如果之前意外启动或作为通用清理的一部分)
                     try
                     {
                         NativeMethods.StopWakeupDetection();
-                        await Task.Delay(100); // 给系统一些时间完成停止操作
+                        await Task.Delay(50); // 给系统一些时间完成停止操作
                     }
                     catch (Exception ex)
                     {
-                        LogMessage($"停止唤醒检测时出现异常: {ex.Message}");
+                        LogMessage($"安全停止过程中停止唤醒检测时出现异常: {ex.Message}");
                     }
-                    
+
                     // 再停止ESR麦克风
                     try
                     {
                         var stopResult = NativeMethods.StopEsrMicrophone();
-                        if (stopResult != 0)
+                        if (stopResult == 0)
                         {
-                            LogMessage($"停止ESR麦克风时出现错误，错误码: {stopResult}");
+                            LogMessage("ESR麦克风已安全停止。");
                         }
-                        await Task.Delay(100); // 给系统一些时间完成停止操作
+                        else
+                        {
+                            LogMessage($"安全停止ESR麦克风时出现错误，错误码: {stopResult}");
+                        }
+                        await Task.Delay(50); // 给系统一些时间完成停止操作
                     }
                     catch (Exception ex)
                     {
-                        LogMessage($"停止ESR麦克风时出现异常: {ex.Message}");
+                        LogMessage($"安全停止过程中停止ESR麦克风时出现异常: {ex.Message}");
                     }
+                    _engineInitialized = false; // 成功停止后，标记引擎为未初始化
+                    LogMessage("语音识别引擎已标记为停止。");
+                }
+                else
+                {
+                    LogMessage("语音识别引擎未初始化或已停止，无需执行额外停止操作。");
                 }
             }
             catch (Exception ex)
             {
                 LogMessage($"安全停止过程中发生异常: {ex.Message}");
+                _engineInitialized = false; // 出错时也确保标记为未初始化
             }
         }
-
     }
 }
