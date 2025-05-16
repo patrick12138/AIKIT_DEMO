@@ -1,10 +1,10 @@
 #include "pch.h"
 #include "Common.h"
+#include "EsrHelper.h"
 #include "IvwWrapper.h"
 #include <string.h>
 #include <aikit_constant.h>
 #include <Windows.h>
-#include "EsrHelper.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -56,7 +56,7 @@ extern "C"
 		}
 
 		AIKITDLL::LogDebug("AIKIT SDK初始化成功，开始初始化功能组件...\n");
-		AIKITDLL::lastResult = "INFO: AIKIT初始化成功！";
+		AIKITDLL::lastResult = "AIKIT SDK初始化成功！";
 
 		return 0;
 	}
@@ -91,8 +91,8 @@ extern "C"
 			return -1;
 		}
 
-		AIKITDLL::LogDebug("语音唤醒启动成功\n");
-		AIKITDLL::lastResult = "SUCCESS: 语音唤醒已启动";
+		AIKITDLL::LogDebug("语音唤醒麦克风流程已完成\n");
+		AIKITDLL::lastResult = "语音唤醒麦克风流程已完成";
 		return 0;
 	}
 
@@ -109,7 +109,7 @@ extern "C"
 
 		// 清理退出操作
 		AIKIT::AIKIT_UnInit();
-		AIKITDLL::LogDebug("命令词识别启动成功\n");		AIKITDLL::lastResult = "SUCCESS: 命令词识别成功";
+		AIKITDLL::lastResult = "命令词麦克风唤醒流程完成";
 		return 0;
 	}
 

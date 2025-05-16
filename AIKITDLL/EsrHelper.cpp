@@ -455,7 +455,7 @@ int EsrStopListening(struct EsrRecognizer* esr)
     if (esr->state < ESR_STATE_STARTED) {
         AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - Not in started state or already stopped (state: %d).", esr->state);
         if (esr->recorder == NULL || esr->recorder == KNOWN_INVALID_RECORDER_HANDLE) {
-             AIKITDLL::LogWarn("ESRHELPER_LOG: EsrStopListening - Recorder is NULL or invalid, nothing to stop for recorder.");
+             AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - Recorder is NULL or invalid, nothing to stop for recorder.");
         }
         // Even if not started, or recorder is null, we might need to clean up AIKIT handle if it exists.
         // However, the main AIKIT_End logic is below and tied to the state.
@@ -470,7 +470,7 @@ int EsrStopListening(struct EsrRecognizer* esr)
 
     if (esr->aud_src == ESR_MIC) {
         if (esr->recorder == NULL || esr->recorder == KNOWN_INVALID_RECORDER_HANDLE) {
-            AIKITDLL::LogWarn("ESRHELPER_LOG: EsrStopListening - esr->recorder is NULL or invalid before calling stop_record. State might be inconsistent.");
+            AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - esr->recorder is NULL or invalid before calling stop_record. State might be inconsistent.");
         } else {
             AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - Calling stop_record for recorder: %p", esr->recorder);
             ret = stop_record(esr->recorder);
@@ -508,14 +508,14 @@ int EsrStopListening(struct EsrRecognizer* esr)
                 AIKITDLL::LogError("ESRHELPER_LOG: EsrStopListening - Failed to create AiAudio for end signal (AiAudio::get returned NULL or invalid).");
             }
         } else {
-            AIKITDLL::LogWarn("ESRHELPER_LOG: EsrStopListening - dataBuilder is NULL, cannot send end signal.");
+            AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - dataBuilder is NULL, cannot send end signal.");
         }
         
         AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - Calling AIKIT_End for handle: %p.", esr->handle);
         AIKIT_End(esr->handle);
         esr->handle = NULL;
     } else {
-        AIKITDLL::LogWarn("ESRHELPER_LOG: EsrStopListening - AIKIT handle is NULL. Cannot send end signal or call AIKIT_End.");
+        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - AIKIT handle is NULL. Cannot send end signal or call AIKIT_End.");
     }
     
     AIKITDLL::LogInfo("ESRHELPER_LOG: EsrStopListening completed. Returning %d.", ret);
@@ -628,9 +628,9 @@ void EsrUninit(struct EsrRecognizer* esr)
         AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - Calling destroy_recorder for recorder: %p", esr->recorder);
         destroy_recorder(esr->recorder); 
     } else if (esr->recorder == KNOWN_INVALID_RECORDER_HANDLE) {
-        AIKITDLL::LogWarn("ESRHELPER_LOG: EsrUninit - esr->recorder is KNOWN_INVALID_RECORDER_HANDLE. Skipping recorder cleanup.");
+        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrUninit - esr->recorder is KNOWN_INVALID_RECORDER_HANDLE. Skipping recorder cleanup.");
     } else {
-        AIKITDLL::LogWarn("ESRHELPER_LOG: EsrUninit - esr->recorder is NULL at entry. Skipping recorder cleanup.");
+        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrUninit - esr->recorder is NULL at entry. Skipping recorder cleanup.");
     }
     esr->recorder = NULL; 
 
@@ -639,7 +639,7 @@ void EsrUninit(struct EsrRecognizer* esr)
         AIKIT_End(esr->handle);
         esr->handle = NULL;
     } else {
-        AIKITDLL::LogWarn("ESRHELPER_LOG: EsrUninit - AIKIT handle is NULL at entry or already cleaned up.");
+        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrUninit - AIKIT handle is NULL at entry or already cleaned up.");
     }
 
     if (esr->dataBuilder != nullptr) {
