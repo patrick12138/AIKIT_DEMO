@@ -3,172 +3,106 @@
 #include <atomic>
 #include <aikit_constant.h>
 #include <thread>
+#include "winrec.h"
 
 namespace AIKITDLL {
 	std::atomic<int> wakeupFlag(0);
 	AIKIT_HANDLE* handle = nullptr;
+
+	// 唤醒音频数据回调
+	static void onWakeupAudioData(char* data, unsigned long len, void* user_para) {
+		AIKIT::AIKIT_DataBuilder* dataBuilder = (AIKIT::AIKIT_DataBuilder*)user_para;
+		if (!dataBuilder) return;
+		dataBuilder->clear();
+		auto aiAudio_raw = AIKIT::AiAudio::get("wav")->data(data, (int)len)->valid();
+		dataBuilder->payload(aiAudio_raw);
+		// 这里假设handle为全局或静态变量，实际项目可根据需要传递
+		if (handle) {
+			AIKIT::AIKIT_Write(handle, AIKIT::AIKIT_Builder::build(dataBuilder));
+		}
+	}
+
 	int ivw_microphone(const char* abilityID, int threshold, int timeoutMs)
 	{
 		int ret = 0;
-		AIKIT::AIKIT_DataBuilder* dataBuilder = nullptr;
-		AIKIT::AiAudio* aiAudio_raw = nullptr;
-		DWORD bufsize;
-
-		HWAVEIN hWaveIn = nullptr;  // 输入设备
-		WAVEFORMATEX waveform;      // 采集音频的格式，结构体
-		BYTE* pBuffer = nullptr;    // 采集音频时的数据缓存
-		WAVEHDR wHdr;               // 采集音频时包含数据缓存的结构体
-		HANDLE wait = nullptr;
-
-		AIKITDLL::LogInfo("ivw_microphone: 开始麦克风唤醒流程");
-
-		// 设置音频格式
-		waveform.wFormatTag = WAVE_FORMAT_PCM;      // 声音格式为PCM
-		waveform.nSamplesPerSec = 16000;            // 音频采样率
-		waveform.wBitsPerSample = 16;               // 采样比特
-		waveform.nChannels = 1;                     // 采样声道数
-		waveform.nAvgBytesPerSec = 16000 * 2;       // 每秒的数据率
-		waveform.nBlockAlign = 2;                   // 一个块的大小，采样bit的字节数乘以声道数
-		waveform.cbSize = 0;                        // 一般为0
-
-		AIKITDLL::LogInfo("ivw_microphone: 设置音频格式完成");
-
-		// 创建事件并打开音频设备
-		wait = CreateEvent(NULL, 0, 0, NULL);
-		if (waveInOpen(&hWaveIn, WAVE_MAPPER, &waveform, (DWORD_PTR)wait, 0L, CALLBACK_EVENT) != MMSYSERR_NOERROR) {
-			AIKITDLL::LogError("ivw_microphone: 打开音频设备失败");
-			lastResult = "打开音频设备失败";
+		struct recorder* rec = nullptr;
+		AIKIT::AIKIT_DataBuilder* dataBuilder = AIKIT::AIKIT_DataBuilder::create();
+		if (!dataBuilder) {
+			AIKITDLL::LogError("ivw_microphone: 创建数据构建器失败");
 			return -1;
 		}
-		AIKITDLL::LogInfo("ivw_microphone: 打开音频设备成功");
-		// 启动会话
-		AIKITDLL::LogInfo("ivw_microphone: 正在启动语音唤醒会话...");
+		// 创建recorder对象，回调中送入唤醒引擎
+		ret = create_recorder(&rec, onWakeupAudioData, dataBuilder);
+		if (ret != 0 || !rec) {
+			AIKITDLL::LogError("ivw_microphone: 创建recorder失败");
+			delete dataBuilder;
+			return -1;
+		}
+		// 设置音频格式
+		WAVEFORMATEX waveform;
+		waveform.wFormatTag = WAVE_FORMAT_PCM;
+		waveform.nSamplesPerSec = 16000;
+		waveform.wBitsPerSample = 16;
+		waveform.nChannels = 1;
+		waveform.nAvgBytesPerSec = 16000 * 2;
+		waveform.nBlockAlign = 2;
+		waveform.cbSize = 0;
+		ret = open_recorder(rec, get_default_input_dev(), &waveform);
+		if (ret != 0) {
+			AIKITDLL::LogError("ivw_microphone: open_recorder失败");
+			destroy_recorder(rec);
+			delete dataBuilder;
+			return -1;
+		}
+		// 启动唤醒会话
 		ret = ivw_start_session(abilityID, &handle, threshold);
 		if (ret != 0) {
 			AIKITDLL::LogError("ivw_microphone: 启动会话失败，错误码: %d", ret);
-			lastResult = "启动会话失败: " + std::to_string(ret);
-			if (hWaveIn) waveInClose(hWaveIn);
-			if (wait) CloseHandle(wait);
+			close_recorder(rec);
+			destroy_recorder(rec);
+			delete dataBuilder;
 			return ret;
 		}
-		AIKITDLL::LogInfo("ivw_microphone: 能力启动成功，句柄: %p", handle);
-
-		// 分配音频缓冲区
-		bufsize = 1024 * 500; // 开辟适当大小的内存存储音频数据
-		pBuffer = (BYTE*)malloc(bufsize);
-		if (!pBuffer) {
-			AIKITDLL::LogError("ivw_microphone: 内存分配失败");
-			lastResult = "内存分配失败";
-			if (handle) AIKIT::AIKIT_End(handle);
-			if (hWaveIn) waveInClose(hWaveIn);
-			if (wait) CloseHandle(wait);
+		// 启动录音
+		ret = start_record(rec);
+		if (ret != 0) {
+			AIKITDLL::LogError("ivw_microphone: start_record失败");
+			ivw_stop_session(handle);
+			close_recorder(rec);
+			destroy_recorder(rec);
+			delete dataBuilder;
 			return -1;
 		}
-		AIKITDLL::LogInfo("ivw_microphone: 分配音频缓冲区成功，大小: %lu", bufsize);
-
-		// 设置录音缓冲区
-		wHdr.lpData = (LPSTR)pBuffer;
-		wHdr.dwBufferLength = bufsize;
-		wHdr.dwBytesRecorded = 0;
-		wHdr.dwUser = 0;
-		wHdr.dwFlags = 0;
-		wHdr.dwLoops = 1;
-		waveInPrepareHeader(hWaveIn, &wHdr, sizeof(WAVEHDR));
-		waveInAddBuffer(hWaveIn, &wHdr, sizeof(WAVEHDR));
-		waveInStart(hWaveIn); // 开始录音
-		AIKITDLL::LogInfo("ivw_microphone: 开始录音");
-
-		// 重置唤醒标志
-		wakeupFlag = 0;
-		AIKITDLL::LogInfo("ivw_microphone: 已重置唤醒标志");
-
-		// 创建数据构建器
-		dataBuilder = AIKIT::AIKIT_DataBuilder::create();
-		if (!dataBuilder) {
-			AIKITDLL::LogError("ivw_microphone: 创建数据构建器失败");
-			free(pBuffer);
-			if (handle) AIKIT::AIKIT_End(handle);
-			if (hWaveIn) {
-				waveInStop(hWaveIn);
-				waveInClose(hWaveIn);
-			}
-			if (wait) CloseHandle(wait);
-			return -1;
-		}
-		AIKITDLL::LogInfo("ivw_microphone: 数据构建器创建成功");
-
-		int len = 0;
-		int audio_count = 0;
-		int count = 0;
-		DWORD startTime = GetTickCount();
-		AIKIT_DataStatus status = AIKIT_DataBegin;
-
 		AIKITDLL::LogInfo("ivw_microphone: 进入音频数据处理循环，超时时间: %d ms", timeoutMs);
-
-		// 循环处理音频数据直到唤醒或超时
-		while (audio_count < bufsize && wakeupFlag != 1)
-		{
-			// 检查是否超时
+		DWORD startTime = GetTickCount();
+		wakeupFlag = 0;
+		int waitMs = 50;
+		while (wakeupFlag != 1) {
 			if (timeoutMs > 0 && (GetTickCount() - startTime) > (DWORD)timeoutMs) {
 				AIKITDLL::LogError("ivw_microphone: 等待唤醒超时");
 				lastResult = "等待唤醒超时";
 				break;
 			}
-
-			Sleep(200); // 等待200ms
-			len = 10 * FRAME_LEN; // 16k音频，10帧 （时长200ms）
-
-			if (audio_count >= wHdr.dwBytesRecorded) {
-				len = 0;
-				status = AIKIT_DataEnd;
-			}
-
-			dataBuilder->clear();
-			aiAudio_raw = AIKIT::AiAudio::get("wav")->data((const char*)&pBuffer[audio_count], len)->valid();
-			dataBuilder->payload(aiAudio_raw);
-			ret = AIKIT::AIKIT_Write(handle, AIKIT::AIKIT_Builder::build(dataBuilder));
-			if (ret != 0) {
-				AIKITDLL::LogError("ivw_microphone: 写入数据失败，错误码: %d", ret);
-				lastResult = "写入数据失败: " + std::to_string(ret);
-				break;
-			}
-
-			status = AIKIT_DataContinue;
-			audio_count += len;
-			count++;
-
-			if (count % 10 == 0) {
-				AIKITDLL::LogInfo("ivw_microphone: 已处理 %d 个音频块, 当前累计字节: %d", count, audio_count);
-			}
+			Sleep(waitMs);
 		}
-
-		AIKITDLL::LogInfo("ivw_microphone: 音频处理循环结束，开始清理资源");
-		// 清理资源
+		// 停止录音
+		stop_record(rec);
+		close_recorder(rec);
+		destroy_recorder(rec);
+		// 结束会话
 		if (handle) {
 			ret = ivw_stop_session(handle);
-			if (ret != 0) {
-				AIKITDLL::LogError("ivw_microphone: 停止会话失败，错误码: %d", ret);
-			}
 			handle = nullptr;
 		}
-		
-		if (hWaveIn) {
-			waveInStop(hWaveIn);
-			waveInReset(hWaveIn);
-			waveInClose(hWaveIn);
-		}
-		if (wait) CloseHandle(wait);
-		if (pBuffer) free(pBuffer);
 		if (dataBuilder) delete dataBuilder;
-
 		if (wakeupFlag == 1) {
 			AIKITDLL::LogInfo("ivw_microphone: 唤醒成功");
 			lastResult = "唤醒成功";
 			return 0;
 		}
 		else {
-			if (ret == 0) lastResult = "未检测到唤醒";
 			AIKITDLL::LogError("ivw_microphone: 唤醒失败，未检测到唤醒词，错误码: %d", ret);
+			if (ret == 0) lastResult = "未检测到唤醒词";
 			return -1;
 		}
 	}

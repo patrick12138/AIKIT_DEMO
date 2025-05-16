@@ -37,7 +37,7 @@ namespace AikitWpfDemo
             // 初始化识别结果监控
             _resultMonitor = new ResultMonitor(msg => LogHelper.LogMessage(msg));
             // 启动自动语音循环流程（Loaded事件）
-            Loaded += async (s, e) => await StartAutoVoiceLoop();
+            //Loaded += async (s, e) => await StartAutoVoiceLoop();
         }
 
         // 窗口关闭事件
