@@ -15,7 +15,7 @@ namespace AikitWpfDemo
     public partial class MainWindow : Window
     {
         // 只保留必要字段
-        private CancellationTokenSource _cts;
+        private CancellationTokenSource _cts; 
         private bool _engineInitialized = false;
         private PopupManager _popupManager; // 替换原CortanaLikePopup
         private ResultMonitor _resultMonitor; // 替换原DispatcherTimer
@@ -37,7 +37,7 @@ namespace AikitWpfDemo
             // 初始化识别结果监控
             _resultMonitor = new ResultMonitor(msg => LogHelper.LogMessage(msg));
             // 启动自动语音循环流程（Loaded事件）
-            //Loaded += async (s, e) => await StartAutoVoiceLoop();
+            Loaded += async (s, e) => await StartAutoVoiceLoop();
         }
 
         // 窗口关闭事件

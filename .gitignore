@@ -1,7 +1,5 @@
 # 编译输出
 windows_ivw_cnenesr_xtts/
-include/
-libs/
 x64/
 *.obj
 *.pdb
@@ -53,3 +51,7 @@ debug/
 [Bb]uild/
 [Ll]og/
 [Ll]ogs/
+
+# 显式包含这些目录
+!libs/
+!include/
