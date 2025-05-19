@@ -1,10 +1,13 @@
 # AIKITDLL 项目架构解析
 
 ## 项目概述
-AIKITDLL 是一个包含C++库和C#应用程序的解决方案，主要与语音识别和语音唤醒处理相关。项目由两个主要部分组成：
+AIKITDLL 是一个包含C++库和C#应用程序的解决方案，主要与语音识别和语音唤醒处理相关。项目由以下几个主要部分组成：
 1. AIKITDLL - C++动态链接库项目，实现底层语音识别功能
 2. AIKIT_WPF_DEMO - C#的WPF应用程序，作为前端演示界面
+3. resource - 资源目录，包含语音识别和唤醒功能所需的模型和配置文件
 
+命令词识别的文本 "C:\AIKIT_DEMO\AIKIT_WPF_DEMO\bin\x64\Debug\net8.0-windows\resource\cnenesr\fsa\cn_fsa.txt"
+还有代码里面也写死了：在CommandHelper里面要对应修改才能生效
 ## 详细结构分析
 
 ### 1. AIKITDLL (C++ DLL项目)
@@ -71,6 +74,13 @@ WPF应用程序提供：
 - `AEE_lib.dll/lib`: 可能是讯飞语音引擎库(Audio Engine Embedded)
 - 各种带有版本号的AEE DLL文件，可能是不同功能模块的语音引擎组件
 
+### 5. resource 目录（被.gitignore忽略）
+包含语音识别和唤醒功能所需的模型资源和配置文件。
+
+#### 关键子目录：
+- `ivw70/`: 包含语音唤醒功能的资源，如唤醒词库和测试音频
+- `cnenesr/`: 包含中文语音识别功能的资源，包括FSA（有限状态自动机）配置和测试音频
+
 ## 项目架构图
 ```
 AIKITDLL解决方案
@@ -107,23 +117,33 @@ AIKITDLL解决方案
 │   ├── aikit_constant.h - 常量定义
 │   └── aikit_err.h - 错误码
 │
-└── Libs - 依赖库
-    ├── 32/ - 32位依赖
-    │   ├── AEE_lib.dll/lib
-    │   └── 其他AEE组件
-    └── 64/ - 64位依赖
-        ├── AEE_lib.dll/lib
-        └── 其他AEE组件
+├── Libs - 依赖库
+│   ├── 32/ - 32位依赖
+│   │   ├── AEE_lib.dll/lib
+│   │   └── 其他AEE组件
+│   └── 64/ - 64位依赖
+│       ├── AEE_lib.dll/lib
+│       └── 其他AEE组件
+│
+└── Resource - 资源文件（被.gitignore忽略）
+    ├── ivw70/ - 语音唤醒资源
+    │   ├── xbxb.txt - 唤醒词配置
+    │   └── testAudio/ - 测试音频文件
+    └── cnenesr/ - 中文语音识别资源
+        ├── fsa/ - 有限状态自动机配置
+        │   └── cn_fsa.txt - 中文FSA配置
+        └── testAudio/ - 测试音频文件
 ```
 
 ## 工作流程
 1. WPF应用程序通过用户界面提供交互入口
 2. 用户启动语音识别或唤醒功能
 3. WPF应用通过NativeMethods.cs中的P/Invoke调用AIKITDLL中的函数
-4. AIKITDLL处理麦克风输入，执行语音识别/唤醒
-5. 识别结果通过回调或返回值传递给WPF应用
-6. 结果经过处理后在界面中展示，可能通过CortanaLikePopup弹窗展示
-7. 对识别出的命令进行处理和执行
+4. AIKITDLL加载resource目录下的语音模型和配置资源
+5. AIKITDLL处理麦克风输入，执行语音识别/唤醒
+6. 识别结果通过回调或返回值传递给WPF应用
+7. 结果经过处理后在界面中展示，可能通过CortanaLikePopup弹窗展示
+8. 对识别出的命令进行处理和执行
 
 ## 技术栈
 - C++: 核心功能实现，负责底层语音识别和处理
