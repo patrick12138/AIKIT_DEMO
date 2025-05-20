@@ -18,9 +18,18 @@ extern "C" {
 #define IVW_ABILITY "e867a88f2" // 语音唤醒能力ID
 #define CNENIVW_ABILITY "e75f07b62" // 离线命令词识别能力ID
 
+	// 唤醒事件回调函数类型
+	typedef void (*WakeupEventCallback)(const char* keyword, int confidence);
+
 	// 语音唤醒控制函数
 	AIKITDLL_API int StartWakeupDetection(int threshold);
 	AIKITDLL_API int StopWakeupDetection();
+
+	// 持续唤醒控制函数
+	AIKITDLL_API int StartContinuousWakeupDetection(int threshold);
+	AIKITDLL_API int StopContinuousWakeupDetection();
+	AIKITDLL_API int GetContinuousWakeupState();
+	AIKITDLL_API int StartContinuousWakeupDetectionWithCallback(int threshold, WakeupEventCallback callback);
 
 	// 语音唤醒能力初始化
 	AIKITDLL_API int Ivw70Init();
@@ -28,22 +37,11 @@ extern "C" {
 	// 语音唤醒资源释放
 	AIKITDLL_API int Ivw70Uninit();
 
-	// 语音唤醒测试函数 - 从麦克风输入
-	AIKITDLL_API int IvwFromMicrophone(int threshold);
-
-	// 语音唤醒测试函数 - 从文件输入
-	AIKITDLL_API int IvwFromFile(const char* audioFilePath, int threshold);
-
 	// 获取当前唤醒状态 (0-未唤醒, 1-已唤醒)
 	AIKITDLL_API int GetWakeupStatus();
 
 	// 重置唤醒状态为未唤醒
 	AIKITDLL_API void ResetWakeupStatus();
-
-	// 重置唤醒状态为未唤醒
-	AIKITDLL_API int TestIvw70(const AIKIT_Callbacks& cbs);
-
-	AIKITDLL_API int TestIvw70Microphone(const AIKIT_Callbacks& cbs);
 
 #ifdef __cplusplus
 }
@@ -63,4 +61,8 @@ namespace AIKITDLL {
 
 	// 从文件进行语音唤醒的内部实现
 	int ivw_file(const char* abilityID, const char* audioFilePath, int threshold);
+
+	int TestIvw70(const AIKIT_Callbacks& cbs);
+
+	int TestIvw70Microphone(const AIKIT_Callbacks& cbs);
 }

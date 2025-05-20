@@ -16,26 +16,40 @@ namespace AIKITDLL {
 		dataBuilder->clear();
 		auto aiAudio_raw = AIKIT::AiAudio::get("wav")->data(data, (int)len)->valid();
 		dataBuilder->payload(aiAudio_raw);
-		// 这里假设handle为全局或静态变量，实际项目可根据需要传递
 		if (handle) {
 			AIKIT::AIKIT_Write(handle, AIKIT::AIKIT_Builder::build(dataBuilder));
 		}
 	}
 
+	//  开启麦克风，开启唤醒会话
 	int ivw_microphone(const char* abilityID, int threshold, int timeoutMs)
 	{
 		int ret = 0;
 		struct recorder* rec = nullptr;
-		AIKIT::AIKIT_DataBuilder* dataBuilder = AIKIT::AIKIT_DataBuilder::create();
-		if (!dataBuilder) {
-			AIKITDLL::LogError("ivw_microphone: 创建数据构建器失败");
-			return -1;
+		static AIKIT::AIKIT_DataBuilder* dataBuilder = nullptr;
+
+		// 只初始化一次会话和数据构建器
+		if (handle == nullptr) {
+			dataBuilder = AIKIT::AIKIT_DataBuilder::create();
+			if (!dataBuilder) {
+				AIKITDLL::LogError("ivw_microphone: 创建数据构建器失败");
+				return -1;
+			}
+			// 启动唤醒会话
+			ret = ivw_start_session(abilityID, &handle, threshold);
+			if (ret != 0) {
+				AIKITDLL::LogError("ivw_microphone: 启动会话失败，错误码: %d", ret);
+				delete dataBuilder;
+				dataBuilder = nullptr;
+				return ret;
+			}
+			AIKITDLL::LogInfo("ivw_microphone: 唤醒会话已启动");
 		}
+
 		// 创建recorder对象，回调中送入唤醒引擎
 		ret = create_recorder(&rec, onWakeupAudioData, dataBuilder);
 		if (ret != 0 || !rec) {
 			AIKITDLL::LogError("ivw_microphone: 创建recorder失败");
-			delete dataBuilder;
 			return -1;
 		}
 		// 设置音频格式
@@ -51,66 +65,46 @@ namespace AIKITDLL {
 		if (ret != 0) {
 			AIKITDLL::LogError("ivw_microphone: open_recorder失败");
 			destroy_recorder(rec);
-			delete dataBuilder;
 			return -1;
 		}
-		// 启动唤醒会话
-		ret = ivw_start_session(abilityID, &handle, threshold);
-		if (ret != 0) {
-			AIKITDLL::LogError("ivw_microphone: 启动会话失败，错误码: %d", ret);
-			close_recorder(rec);
-			destroy_recorder(rec);
-			delete dataBuilder;
-			return ret;
-		}
+
 		// 启动录音
 		ret = start_record(rec);
 		if (ret != 0) {
 			AIKITDLL::LogError("ivw_microphone: start_record失败");
-			ivw_stop_session(handle);
 			close_recorder(rec);
 			destroy_recorder(rec);
-			delete dataBuilder;
 			return -1;
 		}
-		AIKITDLL::LogInfo("ivw_microphone: 进入音频数据处理循环，超时时间: %d ms", timeoutMs);
-		DWORD startTime = GetTickCount();
-		wakeupFlag = 0;
+		AIKITDLL::LogInfo("ivw_microphone: 麦克风已开启，进入音频数据处理循环");
+
+		// 主循环，麦克风一直开启
+		DWORD startTime = GetTickCount64();
 		int waitMs = 50;
-		while (wakeupFlag != 1) {
-			if (timeoutMs > 0 && (GetTickCount() - startTime) > (DWORD)timeoutMs) {
-				AIKITDLL::LogError("ivw_microphone: 等待唤醒超时");
-				lastResult = "等待唤醒超时";
+		while (true) {
+			// 可选：处理超时逻辑
+			if (timeoutMs > 0 && (GetTickCount64() - startTime) > (DWORD)timeoutMs) {
+				AIKITDLL::LogInfo("ivw_microphone: 超时退出主循环");
 				break;
 			}
 			Sleep(waitMs);
+			// 可根据需要添加退出条件
 		}
+
 		// 停止录音
-		stop_record(rec);
+		/*stop_record(rec);
 		close_recorder(rec);
-		destroy_recorder(rec);
-		// 结束会话
-		if (handle) {
-			ret = ivw_stop_session(handle);
-			handle = nullptr;
-		}
-		if (dataBuilder) delete dataBuilder;
-		if (wakeupFlag == 1) {
-			AIKITDLL::LogInfo("ivw_microphone: 唤醒成功");
-			lastResult = "唤醒成功";
-			return 0;
-		}
-		else {
-			AIKITDLL::LogError("ivw_microphone: 唤醒失败，未检测到唤醒词，错误码: %d", ret);
-			if (ret == 0) lastResult = "未检测到唤醒词";
-			return -1;
-		}
+		destroy_recorder(rec);*/
+
+		// 注意：不结束会话，不释放dataBuilder，保持会话持续
+		AIKITDLL::LogInfo("ivw_microphone: 麦克风主循环已退出");
+		return 0;
 	}
 
 	// 开启语音唤醒会话
 	int ivw_start_session(const char* abilityID, AIKIT_HANDLE** outHandle, int threshold) {
 		int ret = 0;
-		
+
 		// 创建参数构建器
 		AIKIT::AIKIT_ParamBuilder* paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
 		if (!paramBuilder) {
@@ -152,10 +146,14 @@ namespace AIKITDLL {
 			LogError("结束处理失败，错误码: %d", ret);
 			return ret;
 		}
+
+		// 清理退出操作
+		AIKIT::AIKIT_UnInit();
 		LogInfo("结束会话成功");
 		return 0;
 	}
 
+	//	从文件导入
 	int ivw_file(const char* abilityID, const char* audioFilePath, int threshold)
 	{
 		int ret = 0;
@@ -294,10 +292,20 @@ namespace AIKITDLL {
 // 语音唤醒能力初始化，接受资源文件路径作为参数
 int Ivw70Init()
 {
+	// 设置回调函数
+	AIKIT_Callbacks cbs = { AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError };
+
+	// 注册能力回调
+	int ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
+	if (ret != 0) {
+		AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
+		return ret;
+	}
+
 	// 初始化阶段 - 检查参数并记录日志
 	AIKITDLL::LogInfo("开始语音唤醒引擎初始化...");
 
-	//// 确保引擎DLL被正确加载（关键修复步骤）
+	// 确保引擎DLL被正确加载
 	AIKITDLL::LogInfo("正在测试引擎加载...");
 	if (!AIKITDLL::EnsureEngineDllsLoaded()) {
 		AIKITDLL::LogError("引擎动态库加载失败，无法继续初始化");
@@ -308,8 +316,6 @@ int Ivw70Init()
 	// 初始化引擎
 	AIKITDLL::LogInfo("正在初始化唤醒引擎...");
 
-	int ret = 0;
-	// 尝试无参数方式初始化引擎
 	ret = AIKIT::AIKIT_EngineInit(IVW_ABILITY, nullptr);
 	if (ret != 0) {
 		AIKITDLL::LogError("引擎初始化失败，错误码: %d, 描述: %s", ret);
@@ -373,145 +379,52 @@ int Ivw70Uninit()
 	return 0;
 }
 
-int TestIvw70(const AIKIT_Callbacks& cbs)
-{
-	AIKIT::AIKIT_ParamBuilder* paramBuilder = nullptr;
-	int ret = 0;
-
-	AIKITDLL::LogInfo("======================= IVW70 测试开始 ===========================");
-
-	// 注册能力回调
-	ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
-	if (ret != 0) {
-		AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
-		return ret;
-	}
-	AIKITDLL::LogInfo("注册能力回调成功");
-
-	// 创建参数构建器
-	paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
-	if (!paramBuilder) {
-		AIKITDLL::LogError("创建参数构建器失败");
-		return -1;
-	}
-
-	// 设置参数
-	paramBuilder->param("wdec_param_nCmThreshold", "0 0:900", strlen("0 0:900"));
-	paramBuilder->param("gramLoad", true);
-	AIKITDLL::LogInfo("参数已设置：唤醒阈值=900");
-
-	// 默认使用音频文件进行测试
-	const char* testAudioPath = ".\\resource\\ivw70\\testAudio\\xbxb.pcm";
-	AIKITDLL::LogInfo("开始从文件测试唤醒功能：%s", testAudioPath);
-
-	ret = AIKITDLL::ivw_file(IVW_ABILITY, testAudioPath, 100);
-
-	if (ret == 0) {
-		AIKITDLL::LogInfo("唤醒测试成功，检测到唤醒词");
-	}
-	else {
-		AIKITDLL::LogError("唤醒测试失败，未检测到唤醒词，错误码: %d", ret);
-	}
-
-	// 清理资源
-	if (paramBuilder != nullptr) {
-		delete paramBuilder;
-		paramBuilder = nullptr;
-	}
-
-	AIKITDLL::LogInfo("======================= IVW70 测试结束 ===========================");
-	return ret;
-}
-
-int TestIvw70Microphone(const AIKIT_Callbacks& cbs)
-{
-	AIKIT::AIKIT_ParamBuilder* paramBuilder = nullptr;
-	int ret = 0;
-
-	AIKITDLL::LogInfo("======================= IVW70 麦克风输入开启 ===========================");
-
-	// 注册能力回调
-	ret = AIKIT::AIKIT_RegisterAbilityCallback(IVW_ABILITY, cbs);
-	if (ret != 0) {
-		AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
-		return ret;
-	}
-	AIKITDLL::LogInfo("注册能力回调成功");
-
-	// 创建参数构建器
-	paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
-	if (!paramBuilder) {
-		AIKITDLL::LogError("创建参数构建器失败");
-		return -1;
-	}
-
-	// 设置参数
-	paramBuilder->param("wdec_param_nCmThreshold", "0 0:900", strlen("0 0:900"));
-	paramBuilder->param("gramLoad", true);
-
-	// 使用麦克风进行测试
-	AIKITDLL::LogInfo("开始从麦克风测试唤醒功能");
-
-	ret = AIKITDLL::ivw_microphone(IVW_ABILITY, 900, 10000); // 10秒超时
-
-	if (ret == 0) {
-		AIKITDLL::LogInfo("麦克风唤醒测试成功，检测到唤醒词");
-	}
-	else {
-		AIKITDLL::LogError("麦克风唤醒测试失败，未检测到唤醒词，错误码: %d", ret);
-	}
-
-	// 清理资源
-	if (paramBuilder != nullptr) {
-		delete paramBuilder;
-		paramBuilder = nullptr;
-	}
-
-	AIKITDLL::LogInfo("======================= IVW70 麦克风输出结束 ===========================");
-	return ret;
-}
-
 // 全局变量，用于跟踪当前会话句柄
 static AIKIT_HANDLE* g_currentHandle = nullptr;
 
 // 开始语音唤醒检测
 AIKITDLL_API int StartWakeupDetection(int threshold) {
-    AIKITDLL::LogInfo("开始语音唤醒检测，阈值: %d", threshold);
+	// 检查是否已经有会话在运行
+	if (g_currentHandle != nullptr) {
+		AIKITDLL::LogError("已有唤醒会话在运行");
+		return -1;
+	}
 
-    // 检查是否已经有会话在运行
-    if (g_currentHandle != nullptr) {
-        AIKITDLL::LogError("已有唤醒会话在运行");
-        return -1;
-    }
+	// 初始化SDK
+	AIKITDLL::InitializeAIKitSDK();
 
-    // 启动会话
-    g_currentHandle = nullptr;
-    int ret = AIKITDLL::ivw_start_session(IVW_ABILITY, &g_currentHandle, threshold);
-    if (ret != 0) {
-        AIKITDLL::LogError("启动唤醒会话失败，错误码: %d", ret);
-        return ret;
-    }
+	AIKITDLL::LogInfo("开始初始化能力与引擎");
 
-    // 使用麦克风进行唤醒检测（启动后会在后台持续检测）
-    std::thread([threshold]() {
-        AIKITDLL::ivw_microphone(IVW_ABILITY, threshold, 0); // 超时时间设为0表示持续检测
-    }).detach();
+	// 初始化唤醒功能
+	int ret = Ivw70Init();
+	if (ret != 0)
+	{
+		AIKITDLL::LogError("唤醒功能初始化失败，错误码：%d\n", ret);
+		AIKITDLL::lastResult = "ERROR: 唤醒功能初始化失败";
+		return -1;
+	}
 
-    return 0;
+	// 使用麦克风进行唤醒检测（默认10秒超时）
+	std::thread([threshold]() {
+		AIKITDLL::ivw_microphone(IVW_ABILITY, threshold, 10000);
+		}).detach();
+
+	AIKITDLL::LogInfo("开始单次语音唤醒检测，阈值: %d", threshold);
+	return 0;
 }
 
 // 停止语音唤醒检测
 AIKITDLL_API int StopWakeupDetection() {
-    AIKITDLL::LogInfo("停止语音唤醒检测");
+	AIKITDLL::LogInfo("停止语音唤醒检测");
 
-    if (g_currentHandle == nullptr) {
-        AIKITDLL::LogError("没有正在运行的唤醒会话");
-        return -1;
-    }
+	if (g_currentHandle == nullptr) {
+		AIKITDLL::LogError("没有正在运行的唤醒会话");
+		return -1;
+	}
 
-    // 停止会话
-    int ret = AIKITDLL::ivw_stop_session(g_currentHandle);
-    g_currentHandle = nullptr;
+	// 停止会话
+	int ret = AIKITDLL::ivw_stop_session(g_currentHandle);
+	g_currentHandle = nullptr;
 
-    return ret;
+	return ret;
 }

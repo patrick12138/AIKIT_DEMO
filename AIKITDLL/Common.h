@@ -51,5 +51,7 @@ namespace AIKITDLL {
 
 	// 引擎初始化支持函数
 	bool EnsureEngineDllsLoaded(); // 确保引擎DLL被正确加载
-	bool ValidateEngineResources(const char* resourcePath); // 验证引擎资源文件完整性
+
+	// 初始化SDK
+	int InitializeAIKitSDK();
 }

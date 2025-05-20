@@ -32,6 +32,9 @@ namespace AikitWpfDemo
         public static extern int StartWakeup();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StartWakeupDetection(int threshold);
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StopWakeupDetection();
         #endregion
 

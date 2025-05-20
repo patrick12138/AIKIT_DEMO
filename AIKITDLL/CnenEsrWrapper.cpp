@@ -12,9 +12,7 @@ extern "C" {
     // __declspec(dllimport) bool HasNewPlainResult(); // 已移除
     // __declspec(dllimport) const char* GetPlainResult(); // 旧签名
 
-    // 新的 P/Invoke 兼容签名
     __declspec(dllimport) int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult);
-    // 你可能还需要其他 Get***Result 函数的声明，如果在这里用到的话
 }
 
 // 定义事件类型常量
