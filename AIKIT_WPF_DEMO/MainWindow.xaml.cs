@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using WinForms = System.Windows.Forms;
 using Microsoft.Win32;
 using System.IO;
+using System.Runtime.InteropServices; // 添加对Marshal类的引用
 using AikitWpfDemo; // 引入辅助类
 
 namespace AikitWpfDemo
@@ -37,7 +38,9 @@ namespace AikitWpfDemo
             // 初始化识别结果监控
             _resultMonitor = new ResultMonitor(msg => LogHelper.LogMessage(msg));
             // 启动自动语音循环流程（Loaded事件）
-            Loaded += async (s, e) => await StartAutoVoiceLoop();
+            //Loaded += async (s, e) => await StartAutoVoiceLoop();
+
+            Loaded += async (s, e) => await StartVoiceInteractionLoop();
         }
 
         // 窗口关闭事件
@@ -241,6 +244,139 @@ namespace AikitWpfDemo
             }
             await Dispatcher.InvokeAsync(() => _popupManager.HidePopup());
             LogHelper.LogMessage("命令词识别自动循环已完全停止。");
+        }
+
+        // 启动语音交互循环，结合唤醒和命令识别
+        private async Task StartVoiceInteractionLoop()
+        {
+            if (_autoLoopRunning)
+            {
+                LogHelper.LogMessage("语音交互循环已在运行中。");
+                return;
+            }
+            _autoLoopRunning = true;
+            LogHelper.LogMessage("语音交互循环已启动...");
+
+            while (_autoLoopRunning)
+            {
+                try
+                {
+                    // 启动唤醒检测
+                    LogHelper.LogMessage("启动语音唤醒检测...");
+                    NativeMethods.ResetWakeupStatus();
+                    int wakeupResult = NativeMethods.StartWakeup(); // 使用合适的阈值
+                    string wakeupDetails = NativeMethods.GetLastResultString();
+                    LogHelper.LogMessage($"语音唤醒启动结果: {wakeupResult}, 详情: {wakeupDetails}");
+
+                    if (wakeupResult != 0)
+                    {
+                        LogHelper.LogMessage($"启动语音唤醒失败 (错误码: {wakeupResult}). 1秒后重试...");
+                        _engineInitialized = false;
+                        _popupManager.HidePopup();
+                        if (_autoLoopRunning) await Task.Delay(1000, _cts.Token);
+                        continue;
+                    }
+                    _engineInitialized = true;
+
+                    // 等待唤醒事件
+                    while (_autoLoopRunning && NativeMethods.GetWakeupStatus() != 1)
+                    {
+                        await Task.Delay(100, _cts.Token);
+                    }
+
+                    if (_autoLoopRunning)
+                    {
+                        string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
+                        LogHelper.LogMessage($"检测到唤醒词: {wakeupInfo}");
+                        await _popupManager.ShowPopupWithAutoCloseAsync("你好，请问你需要做什么操作？");
+                        NativeMethods.ResetWakeupStatus();
+
+                        // 启动命令词识别
+                        LogHelper.LogMessage("已启动实时语音识别，等待用户命令...");
+                        int esrResult = NativeMethods.StartEsrMicrophone();
+                        string esrDetails = NativeMethods.GetLastResultString();
+                        LogHelper.LogMessage($"命令词识别启动结果: {esrResult}, 详情: {esrDetails}");
+
+                        if (esrResult != 0)
+                        {
+                            LogHelper.LogMessage($"启动命令词识别失败 (错误码: {esrResult}).");
+                            _popupManager.HidePopup();
+                            continue;
+                        }
+
+                        // 监控命令词识别结果
+                        var commandTimeout = TimeSpan.FromSeconds(5);
+                        bool commandMatched = false;
+                        string lastCommandText = string.Empty;
+                        var timeoutTime = DateTime.Now + commandTimeout;
+
+                        while (_autoLoopRunning && DateTime.Now < timeoutTime && !commandMatched)
+                        {
+                            IntPtr ptr = NativeMethods.GetEsrKeywordResult();
+                            string currentCommandRaw = ptr != IntPtr.Zero ? Marshal.PtrToStringAnsi(ptr)?.Trim() : string.Empty;
+                            if (!string.IsNullOrEmpty(currentCommandRaw) && currentCommandRaw != lastCommandText)
+                            {
+                                lastCommandText = currentCommandRaw;
+                                LogHelper.LogMessage($"[DEBUG] 当前命令内容: '{lastCommandText}'");
+                                if (_validCommands.Contains(lastCommandText))
+                                {
+                                    LogHelper.LogMessage($"[DEBUG] 命令完全匹配: '{lastCommandText}'，弹窗");
+                                    _recognitionCompleted = false;
+                                    await _popupManager.ShowPopupWithAutoCloseAsync(lastCommandText);
+                                    _lastHandledResult = lastCommandText;
+                                    commandMatched = true;
+                                }
+                            }
+                            await Task.Delay(100, _cts.Token);
+                        }
+
+                        if (_autoLoopRunning && !commandMatched)
+                        {
+                            LogHelper.LogMessage("命令识别超时或未获得有效匹配。");
+                            _popupManager.HidePopup();
+                        }
+                        else if (_autoLoopRunning)
+                        {
+                            // 等待4秒后关闭弹窗
+                            await Task.Delay(4000, _cts.Token);
+                            _popupManager.HidePopup();
+                            LogHelper.LogMessage("弹窗已关闭，返回唤醒监听状态。");
+                        }
+
+                        // 返回唤醒监听状态
+                        if (_autoLoopRunning)
+                        {
+                            LogHelper.LogMessage("准备重新启动唤醒监听...");
+                        }
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    LogHelper.LogMessage("语音交互循环任务被取消。");
+                    _autoLoopRunning = false;
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.LogMessage($"语音交互循环发生严重异常: {ex.Message}");
+                    _engineInitialized = false;
+                    _resultMonitor?.Stop();
+                    _popupManager.HidePopup();
+                    if (_autoLoopRunning)
+                    {
+                        LogHelper.LogMessage("异常后等待1秒重试...");
+                        try { await Task.Delay(1000, _cts.Token); } catch (TaskCanceledException) { _autoLoopRunning = false; }
+                    }
+                }
+            }
+            LogHelper.LogMessage("语音交互循环正在停止...");
+            _resultMonitor?.Stop();
+            if (_engineInitialized)
+            {
+                LogHelper.LogMessage("语音交互循环结束，已最后调用停止ESR麦克风。");
+                _engineInitialized = false;
+            }
+            await Dispatcher.InvokeAsync(() => _popupManager.HidePopup());
+            LogHelper.LogMessage("语音交互循环已完全停止。");
         }
     }
 }

@@ -207,7 +207,7 @@ namespace AIKITDLL {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API const char* GetLastResult()
+	AIKITDLL_API __declspec(dllexport) const char* GetLastResult()
 	{
 		return AIKITDLL::lastResult.c_str();
 	}
@@ -219,7 +219,7 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API int GetWakeupStatus()
+	AIKITDLL_API __declspec(dllexport) int GetWakeupStatus()
 	{
 		return AIKITDLL::wakeupFlag;
 	}
@@ -231,7 +231,7 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API void ResetWakeupStatus()
+	AIKITDLL_API __declspec(dllexport) void ResetWakeupStatus()
 	{
 		AIKITDLL::wakeupFlag = 0;
 		AIKITDLL::wakeupDetected = false;
@@ -244,7 +244,7 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
-	AIKITDLL_API const char* GetWakeupInfoString()
+	AIKITDLL_API __declspec(dllexport) const char* GetWakeupInfoString()
 	{
 		return AIKITDLL::wakeupInfoString.c_str();
 	}
