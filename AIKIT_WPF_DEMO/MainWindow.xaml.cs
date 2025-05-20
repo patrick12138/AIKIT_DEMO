@@ -57,6 +57,7 @@ namespace AikitWpfDemo
         }
 
         // 唤醒测试按钮
+        private DispatcherTimer _wakeupMonitorTimer; // 新增定时器字段
         private void BtnStartWakeup_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -68,15 +69,26 @@ namespace AikitWpfDemo
                 int result = NativeMethods.StartWakeupDetection(100);
                 string detailedResult = NativeMethods.GetLastResultString();
                 LogHelper.LogMessage($"唤醒测试启动结果: {detailedResult}");
-                if (NativeMethods.GetWakeupStatus() == 1)
+
+                // 启动定时器实时监控唤醒状态
+                if (_wakeupMonitorTimer == null)
                 {
-                    string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
-                    LogHelper.LogMessage($"检测到唤醒词: {wakeupInfo}");
-                    _ = _popupManager.ShowPopupWithAutoCloseAsync("你好，请问你需要做什么操作？");
-                    NativeMethods.ResetWakeupStatus();
-                    LogHelper.LogMessage("已启动实时语音识别，等待用户命令...");
+                    _wakeupMonitorTimer = new DispatcherTimer();
+                    _wakeupMonitorTimer.Interval = TimeSpan.FromMilliseconds(100);
+                    _wakeupMonitorTimer.Tick += (s, args) =>
+                    {
+                        if (NativeMethods.GetWakeupStatus() == 1)
+                        {
+                            string wakeupInfo = NativeMethods.GetWakeupInfoStringResult();
+                            LogHelper.LogMessage($"检测到唤醒词: {wakeupInfo}");
+                            _ = _popupManager.ShowPopupWithAutoCloseAsync("你好，请问你需要做什么操作？", 3000);
+                            NativeMethods.ResetWakeupStatus();
+                            LogHelper.LogMessage("已启动实时语音识别，等待用户命令...");
+                        }
+                    };
                 }
-                
+                _wakeupMonitorTimer.Start();
+
                 if (result == 0)
                 {
                     LogHelper.LogMessage("唤醒测试启动成功！");
@@ -93,22 +105,6 @@ namespace AikitWpfDemo
                 MessageBox.Show($"启动唤醒测试时发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 BtnStartWakeup.IsEnabled = true;
                 _resultMonitor?.Stop();
-            }
-        }
-        // 停止唤醒测试按钮
-        private void BtnStopWakeup_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                LogHelper.LogMessage("停止唤醒测试...");
-                NativeMethods.StopWakeupDetection();
-                LogHelper.LogMessage("唤醒测试已停止。");
-                BtnStartWakeup.IsEnabled = true;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.LogMessage($"停止唤醒测试时发生异常: {ex.Message}");
-                MessageBox.Show($"停止唤醒测试时发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         

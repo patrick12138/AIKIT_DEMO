@@ -18,7 +18,6 @@
         <!-- 底部按钮区 -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10" HorizontalAlignment="Center">
             <Button x:Name="BtnStartWakeup" Content="唤醒窗口" Width="100" Margin="5" Click="BtnStartWakeup_Click"/>
-            <Button x:Name="BtnStopWakeup" Content="停止唤醒" Width="100" Margin="5" Click="BtnStopWakeup_Click"/>
             <Button x:Name="BtnRunFullTest" Content="命令词识别" Width="100" Margin="5" Click="BtnStartEsr_Click"/>
         </StackPanel>
     </Grid>
