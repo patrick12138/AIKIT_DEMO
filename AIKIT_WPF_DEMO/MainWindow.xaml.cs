@@ -58,6 +58,7 @@ namespace AikitWpfDemo
 
         // 唤醒测试按钮
         private DispatcherTimer _wakeupMonitorTimer; // 新增定时器字段
+
         private void BtnStartWakeup_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -113,13 +114,6 @@ namespace AikitWpfDemo
         {
             try
             {
-                // 清空各种结果缓存
-                //_lastPgsResult = string.Empty;
-                //_lastHtkResult = string.Empty;
-                //_lastPlainResult = string.Empty;
-                //_lastVadResult = string.Empty;
-                //_lastReadableResult = string.Empty;
-
                 // 启动识别结果监控定时器
                 if (!_resultMonitor.IsEnabled)
                 {
@@ -131,7 +125,7 @@ namespace AikitWpfDemo
                 BtnRunFullTest.IsEnabled = false;
 
                 // 执行测试
-                int result = NativeMethods.StartEsrMicrophone();
+                int result = NativeMethods.StartEsrMicrophoneDetection();
 
                 // 获取并记录详细结果信息
                 string detailedResult = NativeMethods.GetLastResultString();

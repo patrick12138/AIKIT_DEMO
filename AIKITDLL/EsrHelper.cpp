@@ -56,6 +56,49 @@ extern "C" {
 
 // 使用全局变量跟踪初始化状态
 static bool g_resultLockInitialized = false;
+
+static void end_esr(struct EsrRecognizer* esr)
+{
+	if (esr->aud_src == ESR_MIC)
+		stop_record(esr->recorder);
+
+	if (esr->handle) {
+		AIKIT_End(esr->handle);
+		esr->handle = NULL;
+	}
+	esr->state = ESR_STATE_INIT;
+}
+
+static void esr_cb(char* data, unsigned long len, void* user_para)
+{
+	int errcode;
+	struct EsrRecognizer* esr;
+
+	if (len == 0 || data == NULL)
+		return;
+
+	esr = (struct EsrRecognizer*)user_para;
+
+	if (esr == NULL || esr->audio_status >= AIKIT_DataEnd)
+		return;
+
+	errcode = EsrWriteAudioData(esr, data, len);
+	if (errcode) {
+		end_esr(esr);
+		return;
+	}
+}
+
+static void wait_for_rec_stop(struct recorder* rec, unsigned int timeout_ms)
+{
+	while (!is_record_stopped(rec)) {
+		Sleep(1);
+		if (timeout_ms != (unsigned int)-1)
+			if (0 == timeout_ms--)
+				break;
+	}
+}
+
 std::string UTF8ToLocalString(const char* utf8Str) {
 	if (!utf8Str) return "";
 
@@ -266,38 +309,6 @@ int ESRGetRlt(AIKIT_HANDLE* handle, AIKIT_DataBuilder* dataBuilder)
 	return ret;
 }
 
-static void end_esr(struct EsrRecognizer* esr)
-{
-	if (esr->aud_src == ESR_MIC)
-		stop_record(esr->recorder);
-
-	if (esr->handle) {
-		AIKIT_End(esr->handle);
-		esr->handle = NULL;
-	}
-	esr->state = ESR_STATE_INIT;
-}
-
-static void esr_cb(char* data, unsigned long len, void* user_para)
-{
-	int errcode;
-	struct EsrRecognizer* esr;
-
-	if (len == 0 || data == NULL)
-		return;
-
-	esr = (struct EsrRecognizer*)user_para;
-
-	if (esr == NULL || esr->audio_status >= AIKIT_DataEnd)
-		return;
-
-	errcode = EsrWriteAudioData(esr, data, len);
-	if (errcode) {
-		end_esr(esr);
-		return;
-	}
-}
-
 int EsrInit(struct EsrRecognizer* esr, enum EsrAudioSource aud_src, int devid)
 {
 	int errcode;
@@ -431,16 +442,6 @@ int EsrStartListening(struct EsrRecognizer* esr)
 	AIKITDLL::LogInfo("语音识别监听已成功启动");
 	AIKITDLL::LogDebug("开始监听语音输入...");
 	return 0;
-}
-
-static void wait_for_rec_stop(struct recorder* rec, unsigned int timeout_ms)
-{
-	while (!is_record_stopped(rec)) {
-		Sleep(1);
-		if (timeout_ms != (unsigned int)-1)
-			if (0 == timeout_ms--)
-				break;
-	}
 }
 
 int EsrStopListening(struct EsrRecognizer* esr)
@@ -958,21 +959,4 @@ extern "C" __declspec(dllexport) int GetReadableResult(char* buffer, int bufferS
 	LeaveCriticalSection(&g_resultLock);
 
 	return len;
-}
-
-// 清空所有结果缓冲区
-extern "C" __declspec(dllexport) void ClearAllResultBuffers()
-{
-	EnterCriticalSection(&g_resultLock);
-	memset(g_pgsResultBuffer, 0, sizeof(g_pgsResultBuffer));
-	memset(g_htkResultBuffer, 0, sizeof(g_htkResultBuffer));
-	memset(g_plainResultBuffer, 0, sizeof(g_plainResultBuffer));
-	memset(g_vadResultBuffer, 0, sizeof(g_vadResultBuffer));
-	memset(g_readableResultBuffer, 0, sizeof(g_readableResultBuffer));
-	g_hasNewPgsResult = false;
-	g_hasNewHtkResult = false;
-	g_hasNewPlainResult = false;
-	g_hasNewVadResult = false;
-	g_hasNewReadableResult = false;
-	LeaveCriticalSection(&g_resultLock);
 }

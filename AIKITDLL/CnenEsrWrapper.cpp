@@ -5,14 +5,11 @@
 #include <process.h>
 #include <conio.h>
 #include <errno.h>
-#include <mutex> // 添加互斥锁
+#include <mutex>
 
 // 声明ESRHelper中的函数 (新的签名)
 extern "C" {
-    // __declspec(dllimport) bool HasNewPlainResult(); // 已移除
-    // __declspec(dllimport) const char* GetPlainResult(); // 旧签名
-
-    __declspec(dllimport) int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult);
+	__declspec(dllimport) int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult);
 }
 
 // 定义事件类型常量
@@ -42,10 +39,7 @@ namespace AIKITDLL {
 	std::string lastEsrKeywordResult;            // 识别到的命令词结果
 	std::string lastEsrErrorInfo;                // 错误信息
 	std::mutex esrResultMutex;                   // 结果保护互斥锁
-}
 
-// 从麦克风获取ESR结果的实现
-namespace AIKITDLL {
 	int esr_microphone(const char* abilityID)
 	{
 		AIKITDLL::LogInfo("正在初始化麦克风语音识别...");
@@ -81,7 +75,7 @@ namespace AIKITDLL {
 			AIKITDLL::LogError("开始监听失败，错误码: %d", errcode);
 			isquit = 1; // 标记退出
 		}
-		
+
 		char plainResultBuffer[8192]; // 用于接收 plain 结果的缓冲区
 		bool hasNewResult = false;
 
@@ -89,7 +83,7 @@ namespace AIKITDLL {
 			// 调用新的 GetPlainResult
 			memset(plainResultBuffer, 0, sizeof(plainResultBuffer)); // 清空缓冲区
 			hasNewResult = false; // 重置标志
-			int resultLen = GetPlainResult(plainResultBuffer, sizeof(plainResultBuffer) -1, &hasNewResult);
+			int resultLen = GetPlainResult(plainResultBuffer, sizeof(plainResultBuffer) - 1, &hasNewResult);
 
 			if (hasNewResult && resultLen > 0) {
 				// 成功获取到新的 plain 结果
@@ -98,24 +92,26 @@ namespace AIKITDLL {
 				char* actualJson = strstr(plainResultBuffer, "plain: ");
 				if (actualJson) {
 					actualJson += strlen("plain: "); // 跳过 "plain: "
-				} else {
+				}
+				else {
 					actualJson = plainResultBuffer; // 如果没有前缀，则直接使用
 				}
-				
+
 				AIKITDLL::LogInfo("获取到 new plain 结果: %s (长度: %d)", actualJson, resultLen);
 
 				std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
 				AIKITDLL::lastEsrKeywordResult = actualJson; // 存储实际的JSON部分
 				AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
 				AIKITDLL::LogInfo("已识别到命令词: %s，准备退出监听", actualJson);
-				
+
 				errcode = EsrStopListening(&esr);
 				if (errcode) {
 					AIKITDLL::LogError("停止监听失败，错误码: %d", errcode);
 				}
 				isquit = 1;
-				break; 
-			} else {
+				break;
+			}
+			else {
 				// AIKITDLL::LogDebug("未获取到新的plain结果，或结果为空。hasNewResult: %s, resultLen: %d", hasNewResult ? "true" : "false", resultLen);
 			}
 
@@ -174,7 +170,6 @@ namespace AIKITDLL {
 		}
 
 		// 清理资源
-		// ... (保持原有清理逻辑)
 		if (helper_thread != NULL) {
 			WaitForSingleObject(helper_thread, INFINITE);
 			CloseHandle(helper_thread);
@@ -193,10 +188,20 @@ namespace AIKITDLL {
 	}
 }
 
-// ESR初始化函数
+// ESR初始化能力与引擎
 int CnenEsrInit()
 {
-	AIKITDLL::LogInfo("正在初始化ESR能力...");
+	// 注册回调
+	AIKIT_Callbacks cbs = { AIKITDLL::OnOutput, AIKITDLL::OnEvent, AIKITDLL::OnError };
+
+	AIKITDLL::LogInfo("正在注册ESR能力回调");
+
+	int ret = AIKIT::AIKIT_RegisterAbilityCallback(ESR_ABILITY, cbs);
+	if (ret != 0) {
+		AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
+		return -1;
+	}
+	AIKITDLL::LogInfo("注册能力回调成功");
 
 	// 检查工作目录
 	char currentDir[MAX_PATH];
@@ -223,7 +228,7 @@ int CnenEsrInit()
 	engine_paramBuilder->param("wfst_addType", 0);        // 0-中文，1-英文
 
 	AIKITDLL::LogInfo("正在初始化ESR引擎...");
-	int ret = AIKIT::AIKIT_EngineInit(ESR_ABILITY, AIKIT::AIKIT_Builder::build(engine_paramBuilder));
+	ret = AIKIT::AIKIT_EngineInit(ESR_ABILITY, AIKIT::AIKIT_Builder::build(engine_paramBuilder));
 	if (ret != 0) {
 		AIKITDLL::LogError("AIKIT_EngineInit 失败，错误码: %d", ret);
 		delete engine_paramBuilder;
@@ -274,130 +279,43 @@ int CnenEsrUninit()
 	return 0;
 }
 
-// 从文件输入获取ESR结果
-int EsrFromFile(const char* audioFilePath)
-{
-	AIKITDLL::LogInfo("开始文件语音识别测试: %s", audioFilePath);
-
-	if (!audioFilePath) {
-		AIKITDLL::LogError("音频文件路径为空");
-		return -1;
-	}
-
-	// 检查文件是否存在
-	FILE* audioFile = nullptr;
-	errno_t err = fopen_s(&audioFile, audioFilePath, "rb");
-	if (err != 0 || audioFile == nullptr) {
-		AIKITDLL::LogError("音频文件不存在或无法打开: %s, 错误码: %d", audioFilePath, err);
-		return -1;
-	}
-	fclose(audioFile);
-
-	// 处理文件识别
-	long readLen = 0;
-	int ret = ::EsrFromFile(ESR_ABILITY, audioFilePath, 1, &readLen);
-
-	AIKITDLL::LogInfo("文件语音识别测试结束，返回值: %d", ret);
-	return ret;
-}
-
-// 主测试函数
-void TestEsr(const AIKIT_Callbacks& cbs)
-{
-	AIKITDLL::LogInfo("======================= ESR 测试开始 ===========================");
-
-	try {
-		int ret = 0;
-
-		// 设置状态为处理中
-		AIKITDLL::esrStatus = ESR_STATUS_PROCESSING;
-
-		AIKITDLL::LogInfo("正在注册ESR能力回调...");
-		ret = AIKIT::AIKIT_RegisterAbilityCallback(ESR_ABILITY, cbs);
-		if (ret != 0) {
-			AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
-			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-			return;
-		}
-		AIKITDLL::LogInfo("注册能力回调成功");
-
-		// 初始化ESR
-		ret = CnenEsrInit();
-		if (ret != 0) {
-			AIKITDLL::LogError("ESR初始化失败，错误码: %d", ret);
-			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-			goto exit;
-		}
-
-		// 直接从音频文件读取数据
-		const char* audioFilePath = ".\\resource\\cnenesr\\testAudio\\cn_test.pcm";
-		AIKITDLL::LogInfo("开始从文件获取音频数据: %s", audioFilePath);
-		ret = EsrFromFile(audioFilePath);
-		if (ret != 0 && ret != ESR_HAS_RESULT) {
-			AIKITDLL::LogError("文件处理失败，错误码: %d", ret);
-			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-		}
-		else
-		{
-			AIKITDLL::LogInfo("文件处理成功");
-			AIKITDLL::esrStatus = ESR_STATUS_SUCCESS;
-		}
-	}
-	catch (const std::exception& e) {
-		AIKITDLL::LogError("发生异常: %s", e.what());
-		AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-	}
-	catch (...) {
-		AIKITDLL::LogError("发生未知异常");
-		AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-	}
-
-exit:
-	// 释放资源
-	CnenEsrUninit();
-
-	AIKITDLL::LogInfo("======================= ESR 测试结束 ===========================");
-}
-
 // 麦克风输入的ESR测试函数
-void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
+extern "C" __declspec(dllexport) int StartEsrMicrophoneDetection()
 {
-	AIKITDLL::LogInfo("======================= ESR 麦克风测试开始 ===========================");
+	int ret = AIKITDLL::InitializeAIKitSDK();
+	if (ret != 0) {
+		AIKITDLL::LogError("AIKit SDK 初始化失败，错误码: %d", ret);
+		return -1;
+	}
+	AIKITDLL::LogInfo("======================= WPF调用ESR麦克风检测开始 ===========================");
 
+	// 检查是否已有识别会话在运行
+	if (AIKITDLL::esrStatus.load() == ESR_STATUS_PROCESSING) {
+		AIKITDLL::LogError("已有ESR识别会话在运行");
+		return -1;
+	}
+
+	// 初始化ESR
+	ret = CnenEsrInit();
+	if (ret != 0) {
+		AIKITDLL::LogError("ESR初始化失败，错误码: %d", ret);
+		return -1;
+	}
+
+	// 启动麦克风识别线程，避免阻塞主线程
 	try {
-		// 注册回调
-		int ret = 0;
-
 		// 设置状态为处理中
 		AIKITDLL::esrStatus = ESR_STATUS_PROCESSING;
-		AIKITDLL::LogInfo("正在注册ESR能力回调");
 
-		ret = AIKIT::AIKIT_RegisterAbilityCallback(ESR_ABILITY, cbs);
-		if (ret != 0) {
-			AIKITDLL::LogError("注册能力回调失败，错误码: %d", ret);
-			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-			return;
-		}
-		AIKITDLL::LogInfo("注册能力回调成功");
-
-		// 初始化ESR
-		ret = CnenEsrInit();
-		if (ret != 0) {
-			AIKITDLL::LogError("ESR初始化失败，错误码: %d", ret);
-			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
-			goto exit;
-		}
-		// 从麦克风获取音频数据
+		// 开始麦克风识别
 		AIKITDLL::LogInfo("开始从麦克风获取音频数据");
-		ret = AIKITDLL::esr_microphone(ESR_ABILITY);
+		int ret = AIKITDLL::esr_microphone(ESR_ABILITY);
 		if (ret != 0) {
 			AIKITDLL::LogError("麦克风处理失败，错误码: %d", ret);
 			AIKITDLL::esrStatus = ESR_STATUS_FAILED;
 		}
-		else
-		{
+		else {
 			if (AIKITDLL::esrStatus.load() != ESR_STATUS_SUCCESS) {
-				// 如果状态仍然是处理中，但函数返回了，说明可能是超时或其他退出原因
 				if (AIKITDLL::esrStatus.load() == ESR_STATUS_PROCESSING) {
 					AIKITDLL::LogInfo("麦克风处理已结束，但未找到明确结果");
 					AIKITDLL::esrStatus = ESR_STATUS_FAILED;
@@ -417,12 +335,12 @@ void TestEsrMicrophone(const AIKIT_Callbacks& cbs)
 		AIKITDLL::LogError("发生未知异常");
 		AIKITDLL::esrStatus = ESR_STATUS_FAILED;
 	}
-
 exit:
 	// 释放资源
 	CnenEsrUninit();
 
-	AIKITDLL::LogInfo("======================= ESR 麦克风测试结束 ===========================");
+
+	return 0;
 }
 
 // 获取ESR状态

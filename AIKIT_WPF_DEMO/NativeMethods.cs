@@ -23,7 +23,10 @@ namespace AikitWpfDemo
         public static extern IntPtr GetLastResult();        
         
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int StartEsrMicrophone();        
+        public static extern int StartEsrMicrophone();
+        
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StartEsrMicrophoneDetection();
         
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StopEsrMicrophone();

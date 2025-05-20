@@ -62,7 +62,7 @@ namespace AIKITDLL {
 	// 从文件进行语音唤醒的内部实现
 	int ivw_file(const char* abilityID, const char* audioFilePath, int threshold);
 
-	int TestIvw70(const AIKIT_Callbacks& cbs);
+	int TestIvw70FromFile(const AIKIT_Callbacks& cbs);
 
 	int TestIvw70Microphone(const AIKIT_Callbacks& cbs);
 }
