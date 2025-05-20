@@ -520,7 +520,7 @@ int EsrStopListening(struct EsrRecognizer* esr)
     }
     
     AIKITDLL::LogInfo("ESRHELPER_LOG: EsrStopListening completed. Returning %d.", ret);
-    return ret; 
+    return ret;
 }
 
 int EsrWriteAudioData(struct EsrRecognizer* esr, char* data, unsigned int len)

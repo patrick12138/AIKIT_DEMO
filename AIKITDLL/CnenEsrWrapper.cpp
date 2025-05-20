@@ -69,7 +69,7 @@ namespace AIKITDLL {
 			}
 		}
 
-		AIKITDLL::LogInfo("开始监听语音...");
+		AIKITDLL::LogInfo("开始监听语音...，进入EsrStartListening");
 		errcode = EsrStartListening(&esr);
 		if (errcode) {
 			AIKITDLL::LogError("开始监听失败，错误码: %d", errcode);
@@ -282,25 +282,19 @@ int CnenEsrUninit()
 // 麦克风输入的ESR测试函数
 extern "C" __declspec(dllexport) int StartEsrMicrophoneDetection()
 {
-	int ret = AIKITDLL::InitializeAIKitSDK();
-	if (ret != 0) {
-		AIKITDLL::LogError("AIKit SDK 初始化失败，错误码: %d", ret);
-		return -1;
-	}
-	AIKITDLL::LogInfo("======================= WPF调用ESR麦克风检测开始 ===========================");
-
 	// 检查是否已有识别会话在运行
 	if (AIKITDLL::esrStatus.load() == ESR_STATUS_PROCESSING) {
 		AIKITDLL::LogError("已有ESR识别会话在运行");
 		return -1;
 	}
 
-	// 初始化ESR
-	ret = CnenEsrInit();
+	int ret = AIKITDLL::InitializeAIKitSDK();
 	if (ret != 0) {
-		AIKITDLL::LogError("ESR初始化失败，错误码: %d", ret);
+		AIKITDLL::LogError("AIKit SDK 初始化失败，错误码: %d", ret);
 		return -1;
 	}
+
+	AIKITDLL::LogInfo("======================= WPF调用ESR麦克风检测开始 ===========================");
 
 	// 启动麦克风识别线程，避免阻塞主线程
 	try {

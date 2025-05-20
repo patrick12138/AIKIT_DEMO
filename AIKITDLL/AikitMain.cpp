@@ -53,8 +53,26 @@ namespace AIKITDLL {
 		}
 
 		AIKITDLL::LogDebug("AIKIT SDK初始化成功，开始初始化功能组件...\n");
-		AIKITDLL::lastResult = "AIKIT SDK初始化成功！";
+		
+		AIKITDLL::LogInfo("开始初始化能力与引擎");
 
+		// 初始化唤醒功能
+		ret = Ivw70Init();
+		if (ret != 0)
+		{
+			AIKITDLL::LogError("唤醒功能初始化失败，错误码：%d\n", ret);
+			AIKITDLL::lastResult = "ERROR: 唤醒功能初始化失败";
+			return ret;
+		}
+
+		// 初始化ESR
+		ret = CnenEsrInit();
+		if (ret != 0) {
+			AIKITDLL::LogError("ESR初始化失败，错误码: %d", ret);
+			return ret;
+		}
+
+		AIKITDLL::LogInfo("能力与引擎初始化成功,全局初始化完成");
 		return 0;
 	}
 

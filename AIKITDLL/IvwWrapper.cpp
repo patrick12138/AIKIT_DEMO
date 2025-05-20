@@ -391,20 +391,9 @@ AIKITDLL_API int StartWakeupDetection(int threshold) {
 	}
 
 	// 初始化SDK
-	AIKITDLL::InitializeAIKitSDK();
 	int ret =  AIKITDLL::InitializeAIKitSDK();
 	if (ret != 0) {
 		AIKITDLL::LogError("AIKit SDK 初始化失败，错误码: %d", ret);
-		return -1;
-	}
-	AIKITDLL::LogInfo("开始初始化能力与引擎");
-
-	// 初始化唤醒功能
-	ret = Ivw70Init();
-	if (ret != 0)
-	{
-		AIKITDLL::LogError("唤醒功能初始化失败，错误码：%d\n", ret);
-		AIKITDLL::lastResult = "ERROR: 唤醒功能初始化失败";
 		return -1;
 	}
 
