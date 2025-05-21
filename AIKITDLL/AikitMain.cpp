@@ -5,6 +5,7 @@
 #include <string.h>
 #include <aikit_constant.h>
 #include <Windows.h>
+#include "AudioManager.h"
 
 namespace AIKITDLL {
 	int InitializeAIKitSDK()
@@ -53,9 +54,9 @@ namespace AIKITDLL {
 		}
 
 		AIKITDLL::LogDebug("AIKIT SDK初始化成功，开始初始化功能组件...\n");
-		
-		AIKITDLL::LogInfo("开始初始化能力与引擎");
 
+		AIKITDLL::LogInfo("开始初始化能力与引擎");
+		
 		// 初始化唤醒功能
 		ret = Ivw70Init();
 		if (ret != 0)
@@ -72,7 +73,16 @@ namespace AIKITDLL {
 			return ret;
 		}
 
-		AIKITDLL::LogInfo("能力与引擎初始化成功,全局初始化完成");
+		LogInfo("InitializeAIKitSDK: 准备调用 AudioManager::GetInstance().Initialize()...");
+		bool audioManagerInitSuccess = AudioManager::GetInstance().Initialize(0);
+		if (audioManagerInitSuccess) {
+			LogInfo("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用成功。");
+		}
+		else {
+			LogError("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用失败!");
+		}
+
+		AIKITDLL::LogInfo("全局初始化完成");
 		return 0;
 	}
 
@@ -143,14 +153,14 @@ namespace AIKITDLL {
 		// 使用麦克风进行测试
 		AIKITDLL::LogInfo("开始从麦克风测试唤醒功能");
 
-		ret = AIKITDLL::ivw_microphone(IVW_ABILITY, 900, 10000); // 10秒超时
+		//ret = AIKITDLL::ivw_microphone(IVW_ABILITY, 900, 10000); // 10秒超时
 
-		if (ret == 0) {
-			AIKITDLL::LogInfo("麦克风唤醒测试成功，检测到唤醒词");
-		}
-		else {
-			AIKITDLL::LogError("麦克风唤醒测试失败，未检测到唤醒词，错误码: %d", ret);
-		}
+		//if (ret == 0) {
+		//	AIKITDLL::LogInfo("麦克风唤醒测试成功，检测到唤醒词");
+		//}
+		//else {
+		//	AIKITDLL::LogError("麦克风唤醒测试失败，未检测到唤醒词，错误码: %d", ret);
+		//}
 
 		AIKITDLL::LogInfo("======================= IVW70 麦克风输出结束 ===========================");
 		return ret;
@@ -198,10 +208,10 @@ namespace AIKITDLL {
 
 			// 处理文件识别
 			long readLen = 0;
-			 ret = ::EsrFromFile(ESR_ABILITY, audioFilePath, 1, &readLen);
+			//ret = AIKITDLL::EsrFromFile(ESR_ABILITY, audioFilePath, 1, &readLen);
 
 			AIKITDLL::LogInfo("文件语音识别测试结束，返回值: %d", ret);
-			
+
 			if (ret != 0 && ret != ESR_HAS_RESULT) {
 				AIKITDLL::LogError("文件处理失败，错误码: %d", ret);
 			}
@@ -249,11 +259,11 @@ namespace AIKITDLL {
 			}
 			// 从麦克风获取音频数据
 			AIKITDLL::LogInfo("开始从麦克风获取音频数据");
-			ret = AIKITDLL::esr_microphone(ESR_ABILITY);
+			//ret = AIKITDLL::esr_microphone(ESR_ABILITY);
 			if (ret != 0) {
 				AIKITDLL::LogError("麦克风处理失败，错误码: %d", ret);
 			}
-			
+
 		}
 		catch (const std::exception& e) {
 			AIKITDLL::LogError("发生异常: %s", e.what());

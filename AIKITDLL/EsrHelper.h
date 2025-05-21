@@ -3,7 +3,6 @@
 #include "aikit_biz_api.h"
 #include "aikit_biz_config.h"
 #include "Common.h"
-#include "winrec.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,63 +19,32 @@ extern "C" {
 #define AIKITDLL_API
 #endif
 
-// 音频来源类型
-	enum EsrAudioSource {
-		ESR_MIC = 0,  // 麦克风
-		ESR_FILE      // 文件
-	};
+	// 声明全局结果缓冲区和相关标志
+	extern AIKITDLL_API char g_pgsResultBuffer[8192];
+	extern AIKITDLL_API bool g_hasNewPgsResult;
+	extern AIKITDLL_API char g_htkResultBuffer[8192];
+	extern AIKITDLL_API bool g_hasNewHtkResult;
+	extern AIKITDLL_API char g_plainResultBuffer[8192];
+	extern AIKITDLL_API bool g_hasNewPlainResult;
+	extern AIKITDLL_API char g_vadResultBuffer[8192];
+	extern AIKITDLL_API bool g_hasNewVadResult;
+	extern AIKITDLL_API char g_readableResultBuffer[8192];
+	extern AIKITDLL_API bool g_hasNewReadableResult;
 
-	// 错误码定义
-#define E_SR_NOACTIVEDEVICE -1001
-#define E_SR_INVAL          -1002
-#define E_SR_RECORDFAIL     -1003
-#define E_SR_ALREADY        -1004
+	// 声明临界区对象和初始化标志
+	extern AIKITDLL_API CRITICAL_SECTION g_resultLock;
+	extern AIKITDLL_API bool g_resultLockInitialized;
 
-// 语音识别器结构体
-	struct EsrRecognizer {
-		struct recorder* recorder;   // 录音设备句柄
-		EsrAudioSource aud_src;      // 音频来源
-		AIKIT_DataStatus audio_status; // 音频数据状态
-		const char* ABILITY;         // 能力ID
-		AIKIT::AIKIT_DataBuilder* dataBuilder;    // 数据构建器
-		AIKIT::AIKIT_ParamBuilder* paramBuilder;  // 参数构建器
-		AIKIT_HANDLE* handle;        // AIKIT句柄
-		int state;                   // 状态
-	};
+	// 初始化结果锁 (应在SDK初始化时调用)
+	AIKITDLL_API void InitResultLock();
 
-	// 初始化语音识别器
-	AIKITDLL_API int EsrInit(struct EsrRecognizer* esr, enum EsrAudioSource aud_src, int devid);
+	// 获取plain格式的识别结果
+	// 这个函数被CnenEsrWrapper.cpp中的旧esr_microphone循环使用，
+	// 在新的回调模型下，C#层应该通过GetEsrResult和GetEsrStatus来获取最终结果。
+	// 如果仍然需要在C++内部某个地方轮询最新plain结果，可以保留，否则可以考虑移除。
+	// 暂时保留，以防某些内部逻辑仍然依赖它。
+	AIKITDLL_API int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult);
 
-	// 开始监听
-	AIKITDLL_API int EsrStartListening(struct EsrRecognizer* esr);
-
-	// 停止监听
-	AIKITDLL_API int EsrStopListening(struct EsrRecognizer* esr);
-
-	// 写入音频数据
-	AIKITDLL_API int EsrWriteAudioData(struct EsrRecognizer* esr, char* data, unsigned int len);
-
-	// 释放语音识别器资源
-	AIKITDLL_API void EsrUninit(struct EsrRecognizer* esr);
-
-	// 从文件获取ESR结果
-	AIKITDLL_API int EsrFromFile(const char* abilityID, const char* audio_path, int fsa_count, long* readLen);
-
-	/**
-	 * @brief 停止ESR麦克风录音
-	 * @param esr ESR识别器对象
-	 * @return 0表示成功，其他值表示错误码
-	 */
-	AIKITDLL_API int StopEsrMicrophone(struct EsrRecognizer* esr);
 #ifdef __cplusplus
 }
 #endif
-
-// 内部状态定义
-enum {
-	ESR_STATE_INIT,
-	ESR_STATE_STARTED
-};
-
-// 帧长度定义
-#define FRAME_LEN_ESR 640 // 16k采样率的16bit音频，一帧的大小为640B, 时长20ms

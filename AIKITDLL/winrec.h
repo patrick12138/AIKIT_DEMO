@@ -18,6 +18,8 @@
 #ifndef __IFLY_WINREC_H__
 #define __IFLY_WINREC_H__
 
+#include <mmreg.h>
+
 
  /* error code */
 enum {

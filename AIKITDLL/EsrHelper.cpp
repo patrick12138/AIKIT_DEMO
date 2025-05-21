@@ -1,108 +1,35 @@
 #include "pch.h"
 #include "EsrHelper.h"
+#include "AudioManager.h" // 主要依赖AudioManager，不再直接操作recorder
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
 #include <string>
-#include <unordered_map>
-#include <process.h>
+#include <vector> // 用于UTF8ToLocalString
+#include <unordered_map> // 如果仍有其他辅助功能需要
 
 using namespace AIKIT;
 
-// 定义一个已知的无效录音设备指针哨兵值
-#define KNOWN_INVALID_RECORDER_HANDLE ((struct recorder*)0xFFFFFFFFFFFFFFEF)
+// 定义全局结果缓冲区和相关标志
+char g_pgsResultBuffer[8192] = { 0 };
+bool g_hasNewPgsResult = false;
+char g_htkResultBuffer[8192] = { 0 };
+bool g_hasNewHtkResult = false;
+char g_plainResultBuffer[8192] = { 0 };
+bool g_hasNewPlainResult = false;
+char g_vadResultBuffer[8192] = { 0 };
+bool g_hasNewVadResult = false;
+char g_readableResultBuffer[8192] = { 0 };
+bool g_hasNewReadableResult = false;
 
-#define ESR_DBGON 0
-#if ESR_DBGON == 1
-#define esr_dbg AIKITDLL::LogDebug
-#else
-#define esr_dbg
-#endif
+// 定义临界区对象和初始化标志
+CRITICAL_SECTION g_resultLock;
+bool g_resultLockInitialized = false;
 
-#define DEFAULT_FORMAT        \
-{                             \
-    WAVE_FORMAT_PCM,          \
-    1,                        \
-    16000,                    \
-    32000,                    \
-    2,                        \
-    16,                       \
-    sizeof(WAVEFORMATEX)      \
-}
-
-#define ESR_MALLOC malloc
-#define ESR_MFREE  free
-#define ESR_MEMSET memset
-
-// 添加全局变量存储识别结果
-extern "C" {
-	// 不同类型结果的缓冲区
-	char g_pgsResultBuffer[8192] = { 0 };      // pgs格式结果缓冲区
-	char g_htkResultBuffer[8192] = { 0 };      // htk格式结果缓冲区
-	char g_plainResultBuffer[8192] = { 0 };    // plain格式结果缓冲区
-	char g_vadResultBuffer[8192] = { 0 };      // vad格式结果缓冲区
-	char g_readableResultBuffer[8192] = { 0 }; // readable格式结果缓冲区
-
-	// 是否有新结果的标志
-	bool g_hasNewPgsResult = false;
-	bool g_hasNewHtkResult = false;
-	bool g_hasNewPlainResult = false;
-	bool g_hasNewVadResult = false;
-	bool g_hasNewReadableResult = false;
-
-	// 互斥锁保护共享数据
-	CRITICAL_SECTION g_resultLock;
-}
-
-// 使用全局变量跟踪初始化状态
-static bool g_resultLockInitialized = false;
-
-static void end_esr(struct EsrRecognizer* esr)
-{
-	if (esr->aud_src == ESR_MIC)
-		stop_record(esr->recorder);
-
-	if (esr->handle) {
-		AIKIT_End(esr->handle);
-		esr->handle = NULL;
-	}
-	esr->state = ESR_STATE_INIT;
-}
-
-static void esr_cb(char* data, unsigned long len, void* user_para)
-{
-	int errcode;
-	struct EsrRecognizer* esr;
-
-	if (len == 0 || data == NULL)
-		return;
-
-	esr = (struct EsrRecognizer*)user_para;
-
-	if (esr == NULL || esr->audio_status >= AIKIT_DataEnd)
-		return;
-
-	errcode = EsrWriteAudioData(esr, data, len);
-	if (errcode) {
-		end_esr(esr);
-		return;
-	}
-}
-
-static void wait_for_rec_stop(struct recorder* rec, unsigned int timeout_ms)
-{
-	while (!is_record_stopped(rec)) {
-		Sleep(1);
-		if (timeout_ms != (unsigned int)-1)
-			if (0 == timeout_ms--)
-				break;
-	}
-}
-
+// UTF8ToLocalString 函数保持不变，用于日志输出等
 std::string UTF8ToLocalString(const char* utf8Str) {
 	if (!utf8Str) return "";
 
-	// 先转换成宽字符
 	int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8Str, -1, NULL, 0);
 	if (wlen <= 0) {
 		AIKITDLL::LogError("UTF8转换失败，错误码: %d", GetLastError());
@@ -115,32 +42,32 @@ std::string UTF8ToLocalString(const char* utf8Str) {
 		return "";
 	}
 
-	// 再转换成本地编码（GBK）
-	int len = WideCharToMultiByte(CP_ACP, 0, wstr.data(), -1, NULL, 0, NULL, NULL);
+	int len = WideCharToMultiByte(CP_ACP, 0, wstr.data(), -1, NULL, 0, NULL, NULL); // 添加了最后两个NULL参数
 	if (len <= 0) {
-		AIKITDLL::LogError("宽字符转本地编码失败，错误码: %d", GetLastError());
+		AIKITDLL::LogError("宽字符转本地编码失败（计算长度时），错误码: %d", GetLastError());
 		return "";
 	}
 
 	std::vector<char> str(len);
-	if (WideCharToMultiByte(CP_ACP, 0, wstr.data(), -1, str.data(), len, NULL, NULL) <= 0) {
-		AIKITDLL::LogError("宽字符转本地编码失败，错误码: %d", GetLastError());
+	if (WideCharToMultiByte(CP_ACP, 0, wstr.data(), -1, str.data(), len, NULL, NULL) <= 0) { // 添加了最后两个NULL参数
+		AIKITDLL::LogError("宽字符转本地编码失败（转换时），错误码: %d", GetLastError());
 		return "";
 	}
 
 	return std::string(str.data());
 }
 
+// InitResultLock, AddResult, ProcessRecognitionResult 保持不变，由OnOutput回调使用
 // 初始化临界区锁
 void InitResultLock() {
 	if (!g_resultLockInitialized) {
 		__try {
 			InitializeCriticalSection(&g_resultLock);
 			g_resultLockInitialized = true;
-			AIKITDLL::LogDebug("临界区初始化成功");
+			AIKITDLL::LogDebug("EsrHelper: 临界区初始化成功");
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER) {
-			AIKITDLL::LogError("临界区初始化失败");
+			AIKITDLL::LogError("EsrHelper: 临界区初始化失败");
 		}
 	}
 }
@@ -148,77 +75,27 @@ void InitResultLock() {
 // 添加结果到对应缓冲区
 void AddResult(const char* type, const char* result) {
 	if (!type || !result || strlen(result) == 0) return;
+	if (!g_resultLockInitialized) InitResultLock(); //确保初始化
 
 	EnterCriticalSection(&g_resultLock);
 
-	if (strcmp(type, "pgs") == 0) {
-		if (strlen(g_pgsResultBuffer) > 7800) {
-			// 缓冲区快满，只保留最后1000个字符
-			char temp[1000] = { 0 };
-			size_t len = strlen(g_pgsResultBuffer);
-			if (len > 1000) {
-				strcpy_s(temp, sizeof(temp), g_pgsResultBuffer + len - 1000);
-				memset(g_pgsResultBuffer, 0, sizeof(g_pgsResultBuffer));
-				strcpy_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), temp);
-			}
-		}
+	char* targetBuffer = nullptr;
+	bool* newResultFlag = nullptr;
+	size_t bufferSize = 8192;
+	std::string prefix = std::string(type) + ": ";
 
-		// 添加新结果，用换行分隔
-		if (strlen(g_pgsResultBuffer) > 0) {
-			strcat_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), "\n");
-		}
-		strcat_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), "pgs:");
-		strcat_s(g_pgsResultBuffer, sizeof(g_pgsResultBuffer), result);
-		g_hasNewPgsResult = true;
-	}
-	else if (strcmp(type, "htk") == 0) {
-		if (strlen(g_htkResultBuffer) > 7800) {
-			// 缓冲区清理
-			memset(g_htkResultBuffer, 0, sizeof(g_htkResultBuffer));
-		}
+	if (strcmp(type, "pgs") == 0) { targetBuffer = g_pgsResultBuffer; newResultFlag = &g_hasNewPgsResult; }
+	else if (strcmp(type, "htk") == 0) { targetBuffer = g_htkResultBuffer; newResultFlag = &g_hasNewHtkResult; }
+	else if (strcmp(type, "plain") == 0) { targetBuffer = g_plainResultBuffer; newResultFlag = &g_hasNewPlainResult; }
+	else if (strcmp(type, "vad") == 0) { targetBuffer = g_vadResultBuffer; newResultFlag = &g_hasNewVadResult; }
+	else if (strcmp(type, "readable") == 0) { targetBuffer = g_readableResultBuffer; newResultFlag = &g_hasNewReadableResult; }
 
-		if (strlen(g_htkResultBuffer) > 0) {
-			strcat_s(g_htkResultBuffer, sizeof(g_htkResultBuffer), "\n");
-		}
-		strcat_s(g_htkResultBuffer, sizeof(g_htkResultBuffer), "htk:");
-		strcat_s(g_htkResultBuffer, sizeof(g_htkResultBuffer), result);
-		g_hasNewHtkResult = true;
-	}
-	else if (strcmp(type, "plain") == 0) {
-		if (strlen(g_plainResultBuffer) > 7800) {
-			memset(g_plainResultBuffer, 0, sizeof(g_plainResultBuffer));
-		}
-
-		if (strlen(g_plainResultBuffer) > 0) {
-			strcat_s(g_plainResultBuffer, sizeof(g_plainResultBuffer), "\n");
-		}
-		strcat_s(g_plainResultBuffer, sizeof(g_plainResultBuffer), "plain: ");
-		strcat_s(g_plainResultBuffer, sizeof(g_plainResultBuffer), result);
-		g_hasNewPlainResult = true;
-	}
-	else if (strcmp(type, "vad") == 0) {
-		if (strlen(g_vadResultBuffer) > 7800) {
-			memset(g_vadResultBuffer, 0, sizeof(g_vadResultBuffer));
-		}
-
-		if (strlen(g_vadResultBuffer) > 0) {
-			strcat_s(g_vadResultBuffer, sizeof(g_vadResultBuffer), "\n");
-		}
-		strcat_s(g_vadResultBuffer, sizeof(g_vadResultBuffer), "vad: ");
-		strcat_s(g_vadResultBuffer, sizeof(g_vadResultBuffer), result);
-		g_hasNewVadResult = true;
-	}
-	else if (strcmp(type, "readable") == 0) {
-		if (strlen(g_readableResultBuffer) > 7800) {
-			memset(g_readableResultBuffer, 0, sizeof(g_readableResultBuffer));
-		}
-
-		if (strlen(g_readableResultBuffer) > 0) {
-			strcat_s(g_readableResultBuffer, sizeof(g_readableResultBuffer), "\n");
-		}
-		strcat_s(g_readableResultBuffer, sizeof(g_readableResultBuffer), "readable: ");
-		strcat_s(g_readableResultBuffer, sizeof(g_readableResultBuffer), result);
-		g_hasNewReadableResult = true;
+	if (targetBuffer && newResultFlag) {
+		// 清理旧结果或实现滚动逻辑 (简化为直接覆盖)
+		memset(targetBuffer, 0, bufferSize);
+		strcpy_s(targetBuffer, bufferSize, prefix.c_str());
+		strcat_s(targetBuffer, bufferSize, result);
+		*newResultFlag = true;
 	}
 
 	LeaveCriticalSection(&g_resultLock);
@@ -227,736 +104,29 @@ void AddResult(const char* type, const char* result) {
 // 判断结果类型并存储
 void ProcessRecognitionResult(const char* key, const char* value) {
 	if (!key || !value) return;
-
-	// 存储到对应类型的缓冲区
-	if (strcmp(key, "pgs") == 0) {
-		AddResult("pgs", value);
-	}
-	else if (strcmp(key, "htk") == 0) {
-		AddResult("htk", value);
-	}
-	else if (strcmp(key, "plain") == 0) {
-		AddResult("plain", value);
-	}
-	else if (strcmp(key, "vad") == 0) {
-		AddResult("vad", value);
-	}
-	else if (strcmp(key, "readable") == 0) {
-		AddResult("readable", value);
-	}
-
-	// 日志记录 - 使用编码转换
-	std::string localKey = UTF8ToLocalString(key);
-	std::string localValue = UTF8ToLocalString(value);
-	// 日志记录
-	AIKITDLL::LogInfo("识别结果: %s: %s", key, value);
+	AddResult(key, value);
+	// AIKITDLL::LogInfo("EsrHelper 识别结果: %s: %s", key, value); // 日志可在此处或OnOutput中记录
 }
 
-bool is_result = false;
-int ESRGetRlt(AIKIT_HANDLE* handle, AIKIT_DataBuilder* dataBuilder)
-{
-	int ret = 0;
-	AIKIT_OutputData* output = nullptr;
-	AIKIT_InputData* input_data = AIKIT_Builder::build(dataBuilder);
-	bool has_plain_result = false;  // 添加标志位判断plain结果
-
-	// 确保互斥锁已初始化
-	InitResultLock();
-
-	ret = AIKIT_Write(handle, input_data);
-	if (ret != 0) {
-		AIKITDLL::LogError("AIKIT_Write 失败，错误码: %d", ret);
-		return ret;
-	}
-	ret = AIKIT_Read(handle, &output);
-	if (ret != 0) {
-		AIKITDLL::LogError("AIKIT_Read 失败，错误码: %d", ret);
-		return ret;
-	}
-
-	if (output != nullptr) {
-		FILE* fsaFile = nullptr;
-		errno_t err = fopen_s(&fsaFile, "esr_result.txt", "ab");
-		if (err != 0 || fsaFile == nullptr) {
-			AIKITDLL::LogError("文件打开失败!");
-			return -1;
-		}
-		AIKIT_BaseData* node = output->node;
-		while (node != nullptr && node->value != nullptr) {
-			fwrite(node->key, sizeof(char), strlen(node->key), fsaFile);
-			fwrite(": ", sizeof(char), strlen(": "), fsaFile);
-			fwrite(node->value, sizeof(char), node->len, fsaFile);
-			fwrite("\n", sizeof(char), strlen("\n"), fsaFile);
-
-			// 处理识别结果
-			ProcessRecognitionResult(node->key, (char*)node->value);
-			
-			// 检查是否有plain结果
-			if (strcmp(node->key, "plain") == 0 && node->value != nullptr && strlen((char*)node->value) > 0) {
-				has_plain_result = true;
-			}
-
-			node = node->next;
-		}
-		fclose(fsaFile);
-	}
-	
-	// 如果有plain结果，说明识别成功
-	if (has_plain_result) {
-		return ESR_HAS_RESULT;
-	}
-
-	return ret;
+// 导出给CnenEsrWrapper.cpp使用的函数，用于从缓冲区获取结果
+extern "C" __declspec(dllexport) int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult) {
+    if (!g_resultLockInitialized) InitResultLock();
+    EnterCriticalSection(&g_resultLock);
+    int len = 0;
+    if (g_hasNewPlainResult && buffer && bufferSize > 0) {
+        strncpy_s(buffer, bufferSize, g_plainResultBuffer, _TRUNCATE);
+        buffer[bufferSize - 1] = '\0';
+        len = strlen(buffer);
+        g_hasNewPlainResult = false; // 标记为已读取
+        if (isNewResult) *isNewResult = true;
+    }
+    else {
+        if (buffer && bufferSize > 0) buffer[0] = '\0';
+        if (isNewResult) *isNewResult = false;
+    }
+    LeaveCriticalSection(&g_resultLock);
+    return len;
 }
 
-int EsrInit(struct EsrRecognizer* esr, enum EsrAudioSource aud_src, int devid)
-{
-	int errcode;
-	int index[] = { 0 };
-	WAVEFORMATEX wavfmt = DEFAULT_FORMAT;
-
-	if (aud_src == ESR_MIC && get_input_dev_num() == 0) {
-		return E_SR_NOACTIVEDEVICE;
-	}
-
-	if (!esr)
-		return E_SR_INVAL;
-
-	ESR_MEMSET(esr, 0, sizeof(struct EsrRecognizer));
-	esr->state = ESR_STATE_INIT;
-	esr->aud_src = aud_src;
-	esr->audio_status = AIKIT_DataBegin;
-	esr->ABILITY = ESR_ABILITY;
-	esr->dataBuilder = nullptr;
-	esr->dataBuilder = AIKIT_DataBuilder::create();
-	esr->paramBuilder = AIKIT_ParamBuilder::create();
-
-	esr->paramBuilder->clear();
-	esr->paramBuilder->param("languageType", 0);
-	esr->paramBuilder->param("vadEndGap", 75);
-	esr->paramBuilder->param("vadOn", true);
-	esr->paramBuilder->param("beamThreshold", 20);
-	esr->paramBuilder->param("hisGramThreshold", 3000);
-	esr->paramBuilder->param("postprocOn", true);
-	esr->paramBuilder->param("vadResponsetime", 1000);
-	esr->paramBuilder->param("vadLinkOn", true);
-	esr->paramBuilder->param("vadSpeechEnd", 80);
-
-	if (aud_src == ESR_MIC) {
-		errcode = create_recorder(&esr->recorder, esr_cb, (void*)esr);
-		if (esr->recorder == NULL || errcode != 0) {
-			esr_dbg("创建录音设备失败: %d", errcode);
-			errcode = E_SR_RECORDFAIL;
-			goto fail;
-		}
-
-		// 音频参数设置
-		wavfmt.nSamplesPerSec = 16000;
-		wavfmt.nAvgBytesPerSec = wavfmt.nBlockAlign * wavfmt.nSamplesPerSec;
-
-		errcode = open_recorder(esr->recorder, devid, &wavfmt);
-		if (errcode != 0) {
-			esr_dbg("打开录音设备失败: %d", errcode);
-			errcode = E_SR_RECORDFAIL;
-			goto fail;
-		}
-	}
-
-	return 0;
-
-fail:
-	if (esr->recorder) {
-		destroy_recorder(esr->recorder);
-		esr->recorder = NULL;
-	}
-
-	return errcode;
-}
-
-int EsrStartListening(struct EsrRecognizer* esr)
-{
-	int ret;
-	int errcode = 0;
-	int index[] = { 0 };
-
-	AIKITDLL::LogInfo("状态(state): %d", esr->state);
-	AIKITDLL::LogInfo("音频来源(aud_src): %d", esr->aud_src);
-	AIKITDLL::LogInfo("音频状态(audio_status): %d", esr->audio_status);
-	AIKITDLL::LogInfo("能力ID(ABILITY): %s", esr->ABILITY);
-	AIKITDLL::LogInfo("句柄(handle): %p", esr->handle);
-	AIKITDLL::LogInfo("数据构建器(dataBuilder): %p", esr->dataBuilder);
-	AIKITDLL::LogInfo("参数构建器(paramBuilder): %p", esr->paramBuilder);
-	AIKITDLL::LogInfo("录音设备句柄(recorder): %p", esr->recorder);
-	AIKITDLL::LogInfo("当前状态: %d", esr->state);
-
-	// 如果已经有handle，输出其详细信息
-	if (esr->handle) {
-		AIKITDLL::LogInfo("句柄详细信息:");
-		AIKITDLL::LogInfo("  用户上下文: %p", esr->handle->usrContext);
-		AIKITDLL::LogInfo("  能力ID: %s", esr->handle->abilityID ? esr->handle->abilityID : "空");
-		AIKITDLL::LogInfo("  句柄ID: %zu", esr->handle->handleID);
-	}
-
-	if (esr->state >= ESR_STATE_STARTED) {
-		AIKITDLL::LogDebug("识别器已在运行状态,无需重复启动");
-		esr_dbg("已经开始监听.");
-		return E_SR_ALREADY;
-	}
-
-	AIKITDLL::LogDebug("开始指定数据集...");
-	index[0] = 0;
-	errcode = AIKIT_SpecifyDataSet(esr->ABILITY, "FSA", index, sizeof(index) / sizeof(int));
-	if (errcode != 0) {
-		AIKITDLL::LogDebug("指定数据集失败,错误码: %d", errcode);
-		return errcode;
-	}
-	AIKITDLL::LogDebug("数据集指定成功");
-
-	AIKITDLL::LogDebug("正在启动AIKIT服务...");
-	errcode = AIKIT_Start(esr->ABILITY, AIKIT_Builder::build(esr->paramBuilder), nullptr, &esr->handle);
-	if (0 != errcode)
-	{
-		AIKITDLL::LogDebug("AIKIT_Start 启动失败,错误码: %d", errcode);
-		esr_dbg("AIKIT_Start 失败! 错误码:%d", errcode);
-		return errcode;
-	}
-	AIKITDLL::LogDebug("AIKIT服务启动成功");
-
-	esr->audio_status = AIKIT_DataBegin;
-
-	if (esr->aud_src == ESR_MIC) {
-		AIKITDLL::LogDebug("正在启动麦克风录音...");
-		ret = start_record(esr->recorder);
-		if (ret != 0) {
-			AIKITDLL::LogDebug("启动录音失败,错误码: %d", ret);
-			esr_dbg("开始录音失败: %d", ret);
-			ret = AIKIT_End(esr->handle);
-			esr->handle = NULL;
-			return E_SR_RECORDFAIL;
-		}
-		AIKITDLL::LogDebug("麦克风录音启动成功");
-	}
-
-	esr->state = ESR_STATE_STARTED;
-
-	AIKITDLL::LogInfo("语音识别监听已成功启动");
-	AIKITDLL::LogDebug("开始监听语音输入...");
-	return 0;
-}
-
-int EsrStopListening(struct EsrRecognizer* esr)
-{
-    AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening called. esr: %p", esr);
-    if (!esr) {
-        AIKITDLL::LogError("ESRHELPER_LOG: EsrStopListening - esr is NULL.");
-        return E_SR_INVAL;
-    }
-    AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - esr->recorder: %p, esr->state: %d, esr->aud_src: %d", esr->recorder, esr->state, esr->aud_src);
-
-    if (esr->state < ESR_STATE_STARTED) {
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - Not in started state or already stopped (state: %d).", esr->state);
-        if (esr->recorder == NULL || esr->recorder == KNOWN_INVALID_RECORDER_HANDLE) {
-             AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - Recorder is NULL or invalid, nothing to stop for recorder.");
-        }
-        // Even if not started, or recorder is null, we might need to clean up AIKIT handle if it exists.
-        // However, the main AIKIT_End logic is below and tied to the state.
-        // If it was never started, handle should ideally be NULL.
-        // If it was started and then stopped, state would be ESR_STATE_INIT.
-        // This path implies it was either never started, or already stopped and uninitialized partially.
-        return 0; 
-    }
-
-    int ret = 0;
-    AiAudio* aiAudio_raw = NULL; // Moved declaration higher
-
-    if (esr->aud_src == ESR_MIC) {
-        if (esr->recorder == NULL || esr->recorder == KNOWN_INVALID_RECORDER_HANDLE) {
-            AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - esr->recorder is NULL or invalid before calling stop_record. State might be inconsistent.");
-        } else {
-            AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - Calling stop_record for recorder: %p", esr->recorder);
-            ret = stop_record(esr->recorder);
-            if (ret != 0) {
-                AIKITDLL::LogError("ESRHELPER_LOG: EsrStopListening - stop_record failed with code: %d", ret);
-            } else {
-                AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - stop_record succeeded.");
-            }
-            // wait_for_rec_stop should also check if recorder is valid before using.
-            // Assuming is_record_stopped and wait_for_rec_stop handle NULL gracefully or are guarded.
-            if (esr->recorder && esr->recorder != KNOWN_INVALID_RECORDER_HANDLE) { // Guard wait_for_rec_stop
-                 wait_for_rec_stop(esr->recorder, (unsigned int)-1);
-            }
-        }
-    }
-    
-    esr->state = ESR_STATE_INIT; // Mark state as initialized (stopped)
-
-    if (esr->handle) { 
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - AIKIT handle exists (%p). Preparing to send end signal and call AIKIT_End.", esr->handle);
-        if (esr->dataBuilder) { 
-            esr->dataBuilder->clear();
-            // Ensure AiAudio::get is successful and valid() is called.
-            aiAudio_raw = AiAudio::get("audio")->data(NULL, 0)->status(AIKIT_DataEnd)->valid();
-            if (aiAudio_raw) { 
-                 esr->dataBuilder->payload(aiAudio_raw);
-                 AIKITDLL::LogInfo("ESRHELPER_LOG: EsrStopListening - Sending end signal via ESRGetRlt.");
-                 int esrGetRlt_ret = ESRGetRlt(esr->handle, esr->dataBuilder);
-                 if (esrGetRlt_ret != 0 && esrGetRlt_ret != ESR_HAS_RESULT) { // ESR_HAS_RESULT might be ok if it implies ack of end.
-                     AIKITDLL::LogError("ESRHELPER_LOG: EsrStopListening - ESRGetRlt after sending end signal returned: %d", esrGetRlt_ret);
-                 } else {
-                     AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - ESRGetRlt after end signal returned: %d", esrGetRlt_ret);
-                 }
-            } else {
-                AIKITDLL::LogError("ESRHELPER_LOG: EsrStopListening - Failed to create AiAudio for end signal (AiAudio::get returned NULL or invalid).");
-            }
-        } else {
-            AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - dataBuilder is NULL, cannot send end signal.");
-        }
-        
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrStopListening - Calling AIKIT_End for handle: %p.", esr->handle);
-        AIKIT_End(esr->handle);
-        esr->handle = NULL;
-    } else {
-        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrStopListening - AIKIT handle is NULL. Cannot send end signal or call AIKIT_End.");
-    }
-    
-    AIKITDLL::LogInfo("ESRHELPER_LOG: EsrStopListening completed. Returning %d.", ret);
-    return ret;
-}
-
-int EsrWriteAudioData(struct EsrRecognizer* esr, char* data, unsigned int len)
-{
-	AiAudio* aiAudio_raw = NULL;
-	int ret = 0;
-	if (!esr)
-		return E_SR_INVAL;
-	if (!data || !len)
-		return 0;
-
-	esr->dataBuilder->clear();
-	aiAudio_raw = AiAudio::get("audio")->data(data, len)->status(esr->audio_status)->valid();
-	esr->dataBuilder->payload(aiAudio_raw);
-
-	AIKITDLL::LogDebug("写入音频数据");
-	ret = ESRGetRlt(esr->handle, esr->dataBuilder);
-	if (ret) {
-		esr->audio_status = AIKIT_DataEnd;
-		end_esr(esr);
-		return ret;
-	}
-	esr->audio_status = AIKIT_DataContinue;
-
-	return 0;
-}
-
-int StopEsrMicrophone(struct EsrRecognizer* esr)
-{
-    AIKITDLL::LogDebug("StopEsrMicrophone called. esr = %p", (void*)esr);
-    if (!esr) {
-        AIKITDLL::LogError("ESR识别器对象为空");
-        return E_SR_INVAL;
-    }
-    AIKITDLL::LogDebug("esr->recorder = %p, esr->state = %d", (void*)esr->recorder, esr->state);
-
-    // 检查当前状态
-    if (esr->state < ESR_STATE_STARTED) {
-        AIKITDLL::LogDebug("ESR麦克风未启动或已停止");
-        return 0;
-    }
-
-    // 检查录音设备是否存在且有效
-    if (!esr->recorder) { // 处理 NULL 的情况
-        AIKITDLL::LogDebug("没有活动的录音设备 (recorder is NULL)");
-        return 0;
-    }
-    // 新增：处理已知的无效句柄值
-    if (esr->recorder == KNOWN_INVALID_RECORDER_HANDLE) {
-        AIKITDLL::LogError("检测到无效的录音设备句柄 (KNOWN_INVALID_RECORDER_HANDLE), 无法停止");
-        // 考虑到此函数的目标是停止，如果句柄已知无效，或许应该更新状态并认为已停止
-        esr->state = ESR_STATE_INIT; // 更新状态，因为无法操作硬件
-        esr->audio_status = AIKIT_DataEnd;
-        return E_SR_INVAL; // 返回错误码，表明句柄无效
-    }
-
-    AIKITDLL::LogDebug("正在停止ESR麦克风...");
-    AIKITDLL::LogInfo("停止前状态 - 状态:%d, 音频源:%d, 音频状态:%d", 
-        esr->state, esr->aud_src, esr->audio_status);
-    
-    // 停止录音
-    int ret = stop_record(esr->recorder);
-    if (ret != 0) {
-        AIKITDLL::LogError("停止录音失败，错误码: %d", ret);
-        return E_SR_RECORDFAIL;
-    }
-
-    // 等待录音完全停止，设置超时时间为5秒
-    wait_for_rec_stop(esr->recorder, 5000);
-    
-    // 检查是否成功停止
-    if (!is_record_stopped(esr->recorder)) {
-        AIKITDLL::LogError("等待录音停止超时");
-        return E_SR_RECORDFAIL;
-    }
-    
-    // 更新状态
-    esr->state = ESR_STATE_INIT;
-    esr->audio_status = AIKIT_DataEnd;
-    
-    AIKITDLL::LogDebug("ESR麦克风已停止");
-    AIKITDLL::LogInfo("停止后状态 - 状态:%d, 音频源:%d, 音频状态:%d", 
-        esr->state, esr->aud_src, esr->audio_status);
-    return 0;
-}
-
-void EsrUninit(struct EsrRecognizer* esr)
-{
-    AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit called. esr: %p", esr);
-    if (!esr) {
-        AIKITDLL::LogError("ESRHELPER_LOG: EsrUninit - esr is NULL.");
-        return;
-    }
-    AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - esr->recorder: %p, esr->handle: %p", esr->recorder, esr->handle);
-
-    if (esr->recorder && esr->recorder != KNOWN_INVALID_RECORDER_HANDLE) {
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - Recorder exists (%p). Checking if stopped.", esr->recorder);
-        // Assuming is_record_stopped, stop_record, close_recorder, destroy_recorder handle NULL internally
-        // or are only called if recorder is valid. The checks are added for robustness.
-        if (!is_record_stopped(esr->recorder)) { 
-            AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - Recorder not stopped, calling stop_record.");
-            stop_record(esr->recorder); 
-        }
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - Calling close_recorder for recorder: %p", esr->recorder);
-        close_recorder(esr->recorder); 
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - Calling destroy_recorder for recorder: %p", esr->recorder);
-        destroy_recorder(esr->recorder); 
-    } else if (esr->recorder == KNOWN_INVALID_RECORDER_HANDLE) {
-        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrUninit - esr->recorder is KNOWN_INVALID_RECORDER_HANDLE. Skipping recorder cleanup.");
-    } else {
-        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrUninit - esr->recorder is NULL at entry. Skipping recorder cleanup.");
-    }
-    esr->recorder = NULL; 
-
-    if (esr->handle) { 
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - AIKIT handle exists (%p), calling AIKIT_End.", esr->handle);
-        AIKIT_End(esr->handle);
-        esr->handle = NULL;
-    } else {
-        AIKITDLL::LogWarning("ESRHELPER_LOG: EsrUninit - AIKIT handle is NULL at entry or already cleaned up.");
-    }
-
-    if (esr->dataBuilder != nullptr) {
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - Deleting dataBuilder.");
-        delete esr->dataBuilder;
-        esr->dataBuilder = nullptr;
-    }
-    if (esr->paramBuilder != nullptr) {
-        AIKITDLL::LogDebug("ESRHELPER_LOG: EsrUninit - Deleting paramBuilder.");
-        delete esr->paramBuilder;
-        esr->paramBuilder = nullptr;
-    }
-    AIKITDLL::LogInfo("ESRHELPER_LOG: EsrUninit completed for esr: %p.", esr);
-}
-
-int EsrFromFile(const char* abilityID, const char* audio_path, int fsa_count, long* readLen)
-{
-	AIKITDLL::LogInfo("开始处理音频文件识别...");
-
-	int ret = 0;
-	FILE* file = nullptr;
-	long fileSize = 0;
-	long curLen = 0;
-	char data[FRAME_LEN_ESR] = { 0 };
-	int* index = nullptr;
-
-	AIKIT_DataStatus status = AIKIT_DataBegin;
-	AIKIT::AIKIT_DataBuilder* dataBuilder = nullptr;
-	AIKIT_HANDLE* handle = nullptr;
-	AIKIT::AiAudio* aiAudio_raw = nullptr;
-
-	// 防止内存分配失败
-	index = (int*)malloc(fsa_count * sizeof(int));
-	if (index == nullptr) {
-		AIKITDLL::LogError("内存分配失败");
-		return -1;
-	}
-
-	for (int i = 0; i < fsa_count; ++i)
-	{
-		index[i] = i;
-	}
-
-	AIKITDLL::LogInfo("正在指定数据集...");
-	ret = AIKIT::AIKIT_SpecifyDataSet(abilityID, "FSA", index, fsa_count);
-	if (ret != 0)
-	{
-		AIKITDLL::LogError("AIKIT_SpecifyDataSet 失败，错误码: %d", ret);
-	}
-	AIKITDLL::LogInfo("数据集指定成功");
-
-	// 创建参数构建器
-	AIKIT::AIKIT_ParamBuilder* paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
-	if (paramBuilder == nullptr) {
-		AIKITDLL::LogError("创建 ParamBuilder 失败");
-		ret = -1;
-	}
-
-	// 设置参数
-	paramBuilder->clear();
-	paramBuilder->param("languageType", 0);    // 0-中文 1-英文
-	paramBuilder->param("vadEndGap", 60);
-	paramBuilder->param("vadOn", true);
-	paramBuilder->param("beamThreshold", 20);
-	paramBuilder->param("hisGramThreshold", 3000);
-	paramBuilder->param("postprocOn", false);
-	paramBuilder->param("vadResponsetime", 1000);
-	paramBuilder->param("vadLinkOn", true);
-	paramBuilder->param("vadSpeechEnd", 80);
-
-	// 启动能力
-	AIKITDLL::LogInfo("正在启动语音识别能力...");
-	ret = AIKIT::AIKIT_Start(abilityID, AIKIT::AIKIT_Builder::build(paramBuilder), nullptr, &handle);
-	if (ret != 0)
-	{
-		AIKITDLL::LogError("AIKIT_Start 失败，错误码: %d", ret);
-		if (paramBuilder) delete paramBuilder;
-	}
-	AIKITDLL::LogInfo("语音识别能力启动成功");
-
-	// 检查文件路径
-	if (audio_path == nullptr) {
-		AIKITDLL::LogError("音频文件路径为空");
-		ret = -1;
-		if (paramBuilder) delete paramBuilder;
-	}
-
-	// 打开音频文件
-	AIKITDLL::LogInfo("正在打开音频文件: %s", audio_path);
-	errno_t err = fopen_s(&file, audio_path, "rb");
-	if (err != 0 || file == nullptr)
-	{
-		AIKITDLL::LogError("打开音频文件失败: %s，错误码: %d", audio_path, err);
-		ret = -1;
-		if (paramBuilder) delete paramBuilder;
-		goto exit;
-	}
-	AIKITDLL::LogInfo("音频文件打开成功");
-
-	// 获取文件大小
-	fseek(file, 0, SEEK_END);
-	fileSize = ftell(file);
-	fseek(file, 0, SEEK_SET);
-	AIKITDLL::LogInfo("音频文件大小: %ld 字节", fileSize);
-
-	// 创建数据构建器
-	dataBuilder = AIKIT::AIKIT_DataBuilder::create();
-	if (dataBuilder == nullptr) {
-		AIKITDLL::LogError("创建 DataBuilder 失败");
-		ret = -1;
-		if (paramBuilder) delete paramBuilder;
-		goto exit;
-	}
-
-	// 处理音频数据
-	while (fileSize > *readLen) {
-		curLen = fread(data, 1, sizeof(data), file);
-		*readLen += curLen;
-		dataBuilder->clear();
-
-		if (*readLen == FRAME_LEN_ESR) {
-			status = AIKIT_DataBegin;
-		}
-		else {
-			status = AIKIT_DataContinue;
-		}
-
-		// 构建音频数据
-		aiAudio_raw = AIKIT::AiAudio::get("audio")->data(data, curLen)->status(status)->valid();
-		dataBuilder->payload(aiAudio_raw);
-
-		// 获取识别结果
-		AIKITDLL::LogDebug("正在处理音频数据片段，当前位置: %ld 字节", *readLen);
-		ret = ESRGetRlt(handle, dataBuilder);
-		if (ret != 0 && ret != ESR_HAS_RESULT) {
-			AIKITDLL::LogError("处理音频数据失败，错误码: %d", ret);
-			goto exit;
-		}
-
-		// 等待一小段时间，避免CPU占用过高
-		Sleep(10);
-	}
-
-	// 发送结束标记
-	*readLen = -1;
-	dataBuilder->clear();
-	status = AIKIT_DataEnd;
-	aiAudio_raw = AIKIT::AiAudio::get("audio")->data(data, 0)->status(status)->valid();
-	dataBuilder->payload(aiAudio_raw);
-
-	AIKITDLL::LogInfo("发送音频数据结束标记");
-	ret = ESRGetRlt(handle, dataBuilder);
-	if (ret != 0 && ret != ESR_HAS_RESULT) {
-		AIKITDLL::LogError("发送结束标记失败，错误码: %d", ret);
-		goto exit;
-	}
-
-	AIKITDLL::LogInfo("正在结束语音识别能力...");
-	ret = AIKIT::AIKIT_End(handle);
-	if (ret != 0)
-	{
-		AIKITDLL::LogError("AIKIT_End 失败，错误码: %d", ret);
-	}
-
-exit:
-	// 确保所有资源正确释放
-	if (handle != nullptr) {
-		AIKIT::AIKIT_End(handle);
-		handle = nullptr;
-	}
-
-	if (dataBuilder != nullptr) {
-		delete dataBuilder;
-		dataBuilder = nullptr;
-	}
-
-	if (paramBuilder != nullptr) {
-		delete paramBuilder;
-		paramBuilder = nullptr;
-	}
-
-	if (file != nullptr) {
-		fclose(file);
-		file = nullptr;
-	}
-
-	if (index != nullptr) {
-		free(index);
-		index = nullptr;
-	}
-
-	return ret;
-}
-
-// 为WPF应用提供的接口函数 - 获取各种格式的结果
-// 返回值增加长度信息,便于WPF判断
-extern "C" __declspec(dllexport) int GetPgsResult(char* buffer, int bufferSize, bool* isNewResult)
-{
-	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
-		return 0;
-
-	// 确保临界区已初始化
-	InitResultLock();
-	if (!g_resultLockInitialized) {
-		return 0;
-	}
-
-	EnterCriticalSection(&g_resultLock);
-	*isNewResult = g_hasNewPgsResult;
-	int len = strlen(g_pgsResultBuffer);
-	if (len > 0) {
-		strncpy_s(buffer, bufferSize, g_pgsResultBuffer, _TRUNCATE);
-	}
-	g_hasNewPgsResult = false;
-	LeaveCriticalSection(&g_resultLock);
-
-	return len;
-}
-
-extern "C" __declspec(dllexport) int GetHtkResult(char* buffer, int bufferSize, bool* isNewResult)
-{
-	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
-		return 0;
-
-	InitResultLock();
-	if (!g_resultLockInitialized) {
-		return 0;
-	}
-
-	EnterCriticalSection(&g_resultLock);
-	*isNewResult = g_hasNewHtkResult;
-	int len = strlen(g_htkResultBuffer);
-	if (len > 0) {
-		strncpy_s(buffer, bufferSize, g_htkResultBuffer, _TRUNCATE);
-	}
-	g_hasNewHtkResult = false;
-	LeaveCriticalSection(&g_resultLock);
-
-	return len;
-}
-
-extern "C" __declspec(dllexport) int GetPlainResult(char* buffer, int bufferSize, bool* isNewResult)
-{
-	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
-		return 0;
-
-	if (reinterpret_cast<uintptr_t>(isNewResult) == 0xFFFFFFFFFFFFFFFF) {
-		return 0;
-	}
-
-	InitResultLock();
-	if (!g_resultLockInitialized) {
-		return 0;
-	}
-
-	EnterCriticalSection(&g_resultLock);
-	*isNewResult = g_hasNewPlainResult;
-
-	int len = 0;
-	if (g_plainResultBuffer[0] != '\0') {
-		len = strlen(g_plainResultBuffer);
-		if (len > 0) {
-			strncpy_s(buffer, bufferSize, g_plainResultBuffer, _TRUNCATE);
-		}
-	} else {
-		if (bufferSize > 0) {
-			buffer[0] = '\0';
-		}
-	}
-
-	g_hasNewPlainResult = false;
-	LeaveCriticalSection(&g_resultLock);
-
-	return len;
-}
-
-extern "C" __declspec(dllexport) int GetVadResult(char* buffer, int bufferSize, bool* isNewResult)
-{
-	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
-		return 0;
-
-	InitResultLock();
-	if (!g_resultLockInitialized) {
-		return 0;
-	}
-
-	EnterCriticalSection(&g_resultLock);
-	*isNewResult = g_hasNewVadResult;
-	int len = strlen(g_vadResultBuffer);
-	if (len > 0) {
-		strncpy_s(buffer, bufferSize, g_vadResultBuffer, _TRUNCATE);
-	}
-	g_hasNewVadResult = false;
-	LeaveCriticalSection(&g_resultLock);
-
-	return len;
-}
-
-extern "C" __declspec(dllexport) int GetReadableResult(char* buffer, int bufferSize, bool* isNewResult)
-{
-	if (buffer == nullptr || bufferSize <= 0 || isNewResult == nullptr)
-		return 0;
-
-	InitResultLock();
-	if (!g_resultLockInitialized) {
-		return 0;
-	}
-
-	EnterCriticalSection(&g_resultLock);
-	*isNewResult = g_hasNewReadableResult;
-	int len = strlen(g_readableResultBuffer);
-	if (len > 0) {
-		strncpy_s(buffer, bufferSize, g_readableResultBuffer, _TRUNCATE);
-	}
-	g_hasNewReadableResult = false;
-	LeaveCriticalSection(&g_resultLock);
-
-	return len;
-}
+// 其他 Get<Type>Result 函数可以类似地实现，如果需要的话
+// 例如 GetPgsResult, GetHtkResult 等
