@@ -48,6 +48,32 @@ extern "C" {
 }
 #endif
 
+// 在C++环境中，于AIKITDLL命名空间内声明相关变量
+#ifdef __cplusplus
+#include <string> // For std::string
+#include <atomic> // For std::atomic
+
+namespace AIKITDLL {
+    // ESR能力结果标识
+    extern const char ESR_ABILITY_ID[]; // 将宏定义改为常量声明
+
+    // 定义ESR状态枚举 (与CnenEsrWrapper.cpp中保持一致)
+    enum EsrStatusVals {
+        ESR_STATUS_NONE_INTERNAL = 0,
+        ESR_STATUS_PROCESSING_INTERNAL,
+        ESR_STATUS_SUCCESS_INTERNAL,
+        ESR_STATUS_FAILED_INTERNAL,
+        ESR_STATUS_NO_MATCH_INTERNAL // 新增一个未匹配状态
+    };
+
+    extern std::atomic<int> esrStatus;
+    extern std::string lastEsrKeywordResult;
+    extern std::string lastEsrErrorInfo;
+    // extern std::atomic<int> esrResultFlag; // 如果Common.cpp或其他地方需要访问，也应声明
+    // extern std::mutex esrResultMutex; // 如果需要在命名空间外访问，也应声明，但不推荐直接暴露互斥锁
+}
+#endif
+
 // 内部使用的函数
 namespace AIKITDLL {
 	// 麦克风输入的ESR处理函数

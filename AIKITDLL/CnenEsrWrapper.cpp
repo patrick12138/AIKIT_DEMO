@@ -8,13 +8,7 @@
 
 // ESR能力结果标识
 namespace AIKITDLL {
-    // 定义ESR状态枚举
-    enum EsrStatusVals {
-        ESR_STATUS_NONE_INTERNAL = 0,
-        ESR_STATUS_PROCESSING_INTERNAL,
-        ESR_STATUS_SUCCESS_INTERNAL,
-        ESR_STATUS_FAILED_INTERNAL
-    };
+    const char ESR_ABILITY_ID[] = "e75f07b62"; // 定义常量
 
     std::atomic<int> esrResultFlag(0);
     std::atomic<int> esrStatus(ESR_STATUS_NONE_INTERNAL); 
@@ -22,7 +16,7 @@ namespace AIKITDLL {
     std::string lastEsrErrorInfo;                
     std::mutex esrResultMutex;                   
 
-    AIKIT_HANDLE* g_esrHandle = nullptr; // AIKIT_HANDLE 是结构体，g_esrHandle 是指向该结构体的指针
+    AIKIT_HANDLE* g_esrHandle = nullptr;
     AIKIT::AIKIT_DataBuilder* g_esrDataBuilder = nullptr;
 }
 
@@ -60,7 +54,7 @@ int CnenEsrInit()
     engine_paramBuilder->param("wfst_addType", 0); // 0-中文，1-英文
 
     AIKITDLL::LogInfo("正在初始化ESR引擎...");
-    int ret = AIKIT::AIKIT_EngineInit(ESR_ABILITY, AIKIT::AIKIT_Builder::build(engine_paramBuilder));
+    int ret = AIKIT::AIKIT_EngineInit(AIKITDLL::ESR_ABILITY_ID, AIKIT::AIKIT_Builder::build(engine_paramBuilder)); // 使用常量
     if (ret != 0) {
         AIKITDLL::LogError("AIKIT_EngineInit ESR 失败，错误码: %d", ret);
         delete engine_paramBuilder;
@@ -80,7 +74,7 @@ int CnenEsrInit()
     customBuilder->textPath("FSA", ".\\resource\\cnenesr\\fsa\\cn_fsa.txt", 0);
 
     AIKITDLL::LogInfo("正在加载ESR FSA数据...");
-    ret = AIKIT::AIKIT_LoadData(ESR_ABILITY, AIKIT::AIKIT_Builder::build(customBuilder));
+    ret = AIKIT::AIKIT_LoadData(AIKITDLL::ESR_ABILITY_ID, AIKIT::AIKIT_Builder::build(customBuilder)); // 使用常量
     if (ret != 0) {
         AIKITDLL::LogError("AIKIT_LoadData ESR FSA 失败，错误码: %d", ret);
         delete customBuilder;
@@ -96,7 +90,7 @@ int CnenEsrInit()
 int CnenEsrUninit()
 {
     AIKITDLL::LogInfo("CnenEsrUninit: 正在释放ESR资源...");
-    int ret_unload = AIKIT::AIKIT_UnLoadData(ESR_ABILITY, "FSA", 0);
+    int ret_unload = AIKIT::AIKIT_UnLoadData(AIKITDLL::ESR_ABILITY_ID, "FSA", 0); // 使用常量
     if (ret_unload != 0) { // Use AIKIT_ERR_SUCCESS for comparison
         AIKITDLL::LogError("AIKIT_UnLoadData FSA 失败，错误码: %d", ret_unload);
     }
@@ -282,53 +276,3 @@ extern "C" __declspec(dllexport) int GetEsrStatus()
     // 返回内部状态值，C#端可以映射回自己的状态定义
     return AIKITDLL::esrStatus.load();
 }
-
-// 移除旧的 esr_microphone 函数，因为它依赖于旧的同步和直接录音方式
-/*
-namespace AIKITDLL {
-	int esr_microphone(const char* abilityID)
-	{
-		AIKITDLL::LogInfo("正在初始化麦克风语音识别...");
-
-		int errcode;
-		HANDLE helper_thread = NULL;
-		DWORD waitres;
-		char isquit = 0;
-		struct EsrRecognizer esr; // 旧的结构体
-		DWORD startTime = GetTickCount();
-		const DWORD MAX_WAIT_TIME = 10000; // 10秒超时
-
-		// 初始化语音识别器 (旧的EsrInit)
-		errcode = EsrInit(&esr, ESR_MIC, -1);
-		if (errcode) {
-			AIKITDLL::LogError("语音识别器初始化失败，错误码: %d", errcode);
-			return errcode;
-		}
-
-		// 创建事件句柄 (旧的事件逻辑)
-		// ... 
-
-		AIKITDLL::LogInfo("开始监听语音...，进入EsrStartListening (旧)");
-		errcode = EsrStartListening(&esr); // 旧的启动监听
-		if (errcode) {
-			AIKITDLL::LogError("开始监听失败，错误码: %d", errcode);
-			isquit = 1; // 标记退出
-		}
-
-		char plainResultBuffer[8192]; 
-		bool hasNewResult = false;
-
-		while (!isquit) {
-            // 旧的循环获取结果逻辑 GetPlainResult 等
-            // ...
-		}
-
-		// 清理资源 (旧的清理逻辑)
-		// ...
-
-		EsrUninit(&esr); // 旧的反初始化
-		AIKITDLL::LogInfo("麦克风语音识别已结束 (旧)");
-		return errcode; 
-	}
-}
-*/

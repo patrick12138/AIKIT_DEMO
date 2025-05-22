@@ -15,65 +15,65 @@
 
 namespace AIKITDLL {
 
-enum class AudioConsumer {
-    NONE,
-    IVW, // 语音唤醒
-    ESR  // 命令词识别
-};
+	enum class AudioConsumer {
+		NONE,
+		IVW, // 语音唤醒
+		ESR  // 命令词识别
+	};
 
-class AudioManager {
-public:
-    static AudioManager& GetInstance();
+	class AudioManager {
+	public:
+		static AudioManager& GetInstance();
 
-    AudioManager(const AudioManager&) = delete;
-    AudioManager& operator=(const AudioManager&) = delete;
+		AudioManager(const AudioManager&) = delete;
+		AudioManager& operator=(const AudioManager&) = delete;
 
-    // 初始化录音设备，应在应用启动时调用一次
-    // devid: winrec使用的设备ID
-    bool Initialize(int devid = 0); 
+		// 初始化录音设备，应在应用启动时调用一次
+		// devid: winrec使用的设备ID
+		bool Initialize(int devid = 0);
 
-    // 激活指定的音频消费者。
-    // 如果录音未启动，则启动录音。如果已在录音，则切换到新的消费者。
-    // consumer: 要激活的消费者类型 (IVW 或 ESR)
-    // consumerHandle: 对应AIKIT会话的句柄
-    // consumerDataBuilder: 对应AIKIT会话的数据构造器
-    bool ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder);
-    
-    // 停用指定的音频消费者。
-    // 如果没有其他活动的消费者，将停止物理录音。
-    bool DeactivateConsumer(AudioConsumer consumer);
+		// 激活指定的音频消费者。
+		// 如果录音未启动，则启动录音。如果已在录音，则切换到新的消费者。
+		// consumer: 要激活的消费者类型 (IVW 或 ESR)
+		// consumerHandle: 对应AIKIT会话的句柄
+		// consumerDataBuilder: 对应AIKIT会话的数据构造器
+		bool ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder);
 
-    // 强制停止物理录音，并清除所有活动的消费者。
-    // 通常在应用退出或需要立即停止所有音频处理时使用。
-    bool ForceStopRecording(); 
+		// 停用指定的音频消费者。
+		// 如果没有其他活动的消费者，将停止物理录音。
+		bool DeactivateConsumer(AudioConsumer consumer);
 
-    // 清理资源，释放录音设备。应在应用退出前调用。
-    void Uninitialize(); 
+		// 强制停止物理录音，并清除所有活动的消费者。
+		// 通常在应用退出或需要立即停止所有音频处理时使用。
+		bool ForceStopRecording();
 
-    bool IsRecording() const;
+		// 清理资源，释放录音设备。应在应用退出前调用。
+		void Uninitialize();
 
-private:
-    AudioManager();
-    ~AudioManager();
+		bool IsRecording() const;
 
-    // winrec 的静态音频回调函数
-    static void AudioCallback(char* data, unsigned long len, void* userData);
-    // 处理从 winrec 收到的音频数据
-    void ProcessAudioData(char* data, unsigned long len);
+	private:
+		AudioManager();
+		~AudioManager();
 
-    recorder* recorder_;
-    AudioConsumer current_consumer_;
-    AIKIT_HANDLE* active_handle_; 
-    AIKIT::AIKIT_DataBuilder* active_data_builder_;
-    AIKIT_DataStatus audio_status_; // 当前发送给AIKIT_Write的音频状态
-    
-    bool is_initialized_;
-    bool is_recording_; // 物理录音是否正在进行
-    int device_id_;
-    WAVEFORMATEX wave_format_; // 音频格式
+		// winrec 的静态音频回调函数
+		static void AudioCallback(char* data, unsigned long len, void* userData);
+		// 处理从 winrec 收到的音频数据
+		void ProcessAudioData(char* data, unsigned long len);
 
-    static AudioManager* instance_;
-};
+		recorder* recorder_;
+		AudioConsumer current_consumer_;
+		AIKIT_HANDLE* active_handle_;
+		AIKIT::AIKIT_DataBuilder* active_data_builder_;
+		AIKIT_DataStatus audio_status_; // 当前发送给AIKIT_Write的音频状态
+
+		bool is_initialized_;
+		bool is_recording_; // 物理录音是否正在进行
+		int device_id_;
+		WAVEFORMATEX wave_format_; // 音频格式
+
+		static AudioManager* instance_;
+	};
 
 } // namespace AIKITDLL
 
