@@ -26,6 +26,9 @@ extern "C" {
 	// 清理SDK资源
 	AIKITDLL_API void CleanupSDK();
 
+	// 获取命令词识别结果 (之前称为PGS结果)
+	AIKITDLL_API const char* GetPgsResult();
+
 #ifdef __cplusplus
 }
 #endif

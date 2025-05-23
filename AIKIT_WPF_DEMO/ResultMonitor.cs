@@ -50,14 +50,14 @@ namespace AikitWpfDemo
                 if (_mergeResults) resultBuilder.AppendLine(currentResult);
                 else _onNewResult?.Invoke(currentResult);
             }
-            string currentResult2 = NativeMethods.GetReadableResultString();
-            if (!string.IsNullOrEmpty(currentResult2) && currentResult2 != _lastReadableResult)
-            {
-                _lastReadableResult = currentResult2;
-                hasAnyNewResult = true;
-                if (_mergeResults) resultBuilder.AppendLine(currentResult2);
-                else _onNewResult?.Invoke(currentResult2);
-            }
+            // string currentResult2 = NativeMethods.GetReadableResultString();
+            // if (!string.IsNullOrEmpty(currentResult2) && currentResult2 != _lastReadableResult)
+            // {
+            //     _lastReadableResult = currentResult2;
+            //     hasAnyNewResult = true;
+            //     if (_mergeResults) resultBuilder.AppendLine(currentResult2);
+            //     else _onNewResult?.Invoke(currentResult2);
+            // }
             if (hasAnyNewResult && _mergeResults && resultBuilder != null && resultBuilder.Length > 0)
             {
                 _onNewResult?.Invoke(resultBuilder.ToString().TrimEnd());

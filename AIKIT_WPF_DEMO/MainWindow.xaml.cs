@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using System.IO;
 using System.Runtime.InteropServices; // 添加对Marshal类的引用
 using AikitWpfDemo; // 引入辅助类
+using System.Diagnostics; // For Stopwatch
 
 namespace AikitWpfDemo
 {
@@ -110,7 +111,7 @@ namespace AikitWpfDemo
         }
         
         // 命令词识别按钮
-        private void BtnStartEsr_Click(object sender, RoutedEventArgs e)
+        private async void BtnStartEsr_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -118,37 +119,64 @@ namespace AikitWpfDemo
                 if (!_resultMonitor.IsEnabled)
                 {
                     _resultMonitor.Start();
-                    LogHelper.LogMessage("已启动实时识别结果监控");
+                    LogHelper.LogMessage("实时识别结果监控已启动 (全局)");
                 }
 
-                // 禁用按钮，防止重复点击
                 BtnRunFullTest.IsEnabled = false;
+                LogHelper.LogMessage("ESR麦克风检测测试开始...");
 
-                // 执行测试
-                int result = NativeMethods.StartEsrMicrophoneDetection();
+                int startResult = NativeMethods.StartEsrMicrophoneDetection();
+                string startDetailedResult = NativeMethods.GetLastResultString(); // Result of the Start command itself
+                LogHelper.LogMessage($"StartEsrMicrophoneDetection 命令结果: {startDetailedResult} (Code: {startResult})");
 
-                // 获取并记录详细结果信息
-                string detailedResult = NativeMethods.GetLastResultString();
-                LogHelper.LogMessage($"测试启动结果: {detailedResult}");
-
-                if (result == 0)
+                if (startResult == 0) // 0 means success for StartEsrMicrophoneDetection
                 {
-                    LogHelper.LogMessage("测试完成，执行成功！");
+                    LogHelper.LogMessage("麦克风检测已成功启动。现在持续监听命令词识别结果...");
+
+                    // 创建一个定时器来持续监听ESR状态
+                    DispatcherTimer esrMonitorTimer = new DispatcherTimer();
+                    esrMonitorTimer.Interval = TimeSpan.FromMilliseconds(250); // 每250ms检查一次
+                    esrMonitorTimer.Tick += (s, args) =>
+                    {
+                        int currentEsrStatus = NativeMethods.GetEsrStatus();
+
+                        if (currentEsrStatus == NativeMethods.ESR_STATUS_SUCCESS_INTERNAL)
+                        {
+                            string finalEsrResult = NativeMethods.GetEsrFinalDisplayResult();
+                            LogHelper.LogMessage($"ESR成功: {finalEsrResult}");
+                        }
+                        else if (currentEsrStatus == NativeMethods.ESR_STATUS_FAILED_INTERNAL ||
+                                currentEsrStatus == NativeMethods.ESR_STATUS_NO_MATCH_INTERNAL)
+                        {
+                            string finalEsrResult = NativeMethods.GetEsrFinalDisplayResult();
+                            LogHelper.LogMessage($"ESR结束 (失败/无匹配): {finalEsrResult} (状态: {currentEsrStatus})");
+                        }
+
+                        // 可以在这里获取PGS结果
+                        string pgsResult = NativeMethods.GetLatestPgsResult()?.Trim();
+                        if (!string.IsNullOrEmpty(pgsResult))
+                        {
+                            LogHelper.LogMessage($"[实时] PGS: {pgsResult}");
+                        }
+                    };
+
+                    esrMonitorTimer.Start();
+                    LogHelper.LogMessage("ESR持续监听已启动");
                 }
                 else
                 {
-                    LogHelper.LogMessage($"测试失败，错误码: {result}");
+                    LogHelper.LogMessage($"启动麦克风检测失败。错误码: {startResult}");
                 }
-
-                // 重新启用按钮
-                BtnRunFullTest.IsEnabled = true;
             }
             catch (Exception ex)
             {
-                LogHelper.LogMessage($"启动测试线程时发生异常: {ex.Message}");
-                MessageBox.Show($"启动测试时发生异常: {ex.Message}", "异常", MessageBoxButton.OK, MessageBoxImage.Error);
+                LogHelper.LogMessage($"ESR测试执行时发生异常: {ex.Message}");
+                MessageBox.Show($"ESR测试执行时发生异常: {ex.Message}", "异常", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
                 BtnRunFullTest.IsEnabled = true;
-                _resultMonitor?.Stop();
+                LogHelper.LogMessage("ESR测试按钮已重新启用。");
             }
         }
 

@@ -9,9 +9,17 @@ namespace AikitWpfDemo
     {
         private const string DllPath = @"C:\AIKITDLL\x64\Debug\AIKITDLL.dll";
 
+        // Define ESR Status constants to match C++ definitions
+        public const int ESR_STATUS_NONE_INTERNAL = 0;
+        public const int ESR_STATUS_PROCESSING_INTERNAL = 1;
+        public const int ESR_STATUS_SUCCESS_INTERNAL = 2;
+        public const int ESR_STATUS_FAILED_INTERNAL = 3;
+        public const int ESR_STATUS_NO_MATCH_INTERNAL = 4;
+        public const int ESR_STATUS_INITIALIZED_INTERNAL = 5;
+
         #region DLL导入 - 基础功能
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] // 添加 CharSet.Ansi
-        public static extern int GetPgsResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetPgsResult(byte[] buffer, int bufferSize, out bool isNewResult);
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern int InitializeSDK(string appID, string apiKey, string apiSecret, string workDir);
@@ -29,7 +37,7 @@ namespace AikitWpfDemo
         public static extern int StartEsrMicrophoneDetection();
         
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int StopEsrMicrophone();
+        public static extern int StopEsrMicrophoneDetection();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StartWakeup();
@@ -57,52 +65,38 @@ namespace AikitWpfDemo
         public static extern int GetEsrStatus();
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ResetEsrStatus();
+        private static extern int GetEsrResult(byte[] buffer, int bufferSize);
 
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetEsrKeywordResult();
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetHtkResult(byte[] buffer, int bufferSize, out bool isNewResult);
 
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetEsrErrorInfo();
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetPlainResult(byte[] buffer, int bufferSize, out bool isNewResult);
 
-        // 更新以下结果获取函数的P/Invoke声明
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern int GetHtkResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetVadResult(byte[] buffer, int bufferSize, out bool isNewResult);
 
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern int GetPlainResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern int GetVadResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
-
-        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern int GetReadableResult(StringBuilder buffer, int bufferSize, out bool isNewResult);
-
-        //  清空所有结果缓冲区
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern void ClearAllResultBuffers();
         #endregion
 
         #region 辅助方法 - 结果字符串转换
-        // 辅助方法：获取上次结果字符串
+        // 辅助方法：获取上次结果字符串 (确保UTF-8解码)
         public static string GetLastResultString()
         {
             IntPtr ptr = GetLastResult();
             if (ptr != IntPtr.Zero)
             {
-                // 计算字符串长度（遇到\0为止）
                 int len = 0;
                 while (Marshal.ReadByte(ptr, len) != 0) len++;
                 if (len > 0)
                 {
                     byte[] buffer = new byte[len];
                     Marshal.Copy(ptr, buffer, 0, len);
-                    // 用UTF-8解码，防止中文乱码
-                    string result = System.Text.Encoding.UTF8.GetString(buffer);
-                    return result;
+                    return System.Text.Encoding.UTF8.GetString(buffer); // 显式UTF-8解码
                 }
             }
-            return "无结果";
+            return "无结果"; // 或者 string.Empty
         }
 
         // 辅助方法：获取唤醒词信息字符串（修正中文乱码问题，采用UTF-8解码）
@@ -111,43 +105,28 @@ namespace AikitWpfDemo
             IntPtr ptr = GetWakeupInfoString();
             if (ptr != IntPtr.Zero)
             {
-                // 计算字符串长度（遇到\0为止）
                 int len = 0;
                 while (Marshal.ReadByte(ptr, len) != 0) len++;
                 if (len > 0)
                 {
                     byte[] buffer = new byte[len];
                     Marshal.Copy(ptr, buffer, 0, len);
-                    // 用UTF-8解码，防止中文乱码
-                    string result = System.Text.Encoding.UTF8.GetString(buffer);
-                    return result;
+                    return System.Text.Encoding.UTF8.GetString(buffer); // 显式UTF-8解码
                 }
             }
-            return "无唤醒信息";
+            return "无唤醒信息"; // 或者 string.Empty
         }
 
-        // 辅助方法：获取ESR命令词识别结果
-        public static string GetEsrKeywordResultString()
+        // New helper method to get final ESR result (keyword or error) using the buffer method
+        public static string GetEsrFinalDisplayResult()
         {
-            IntPtr ptr = GetEsrKeywordResult();
-            if (ptr != IntPtr.Zero)
+            byte[] buffer = new byte[1024 * 2]; // 2KB buffer, adjust if necessary
+            int length = GetEsrResult(buffer, buffer.Length);
+            if (length > 0)
             {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
+                return System.Text.Encoding.UTF8.GetString(buffer, 0, length);
             }
-            return "无命令词识别结果";
-        }
-
-        // 辅助方法：获取ESR错误信息
-        public static string GetEsrErrorInfoString()
-        {
-            IntPtr ptr = GetEsrErrorInfo();
-            if (ptr != IntPtr.Zero)
-            {
-                string result = Marshal.PtrToStringAnsi(ptr);
-                return result;
-            }
-            return "无错误信息";
+            return string.Empty; // Or a default message like "No result available"
         }
         #endregion
 
@@ -156,15 +135,15 @@ namespace AikitWpfDemo
 
         public static string GetLatestPgsResult()
         {
-            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            byte[] buffer = new byte[8192]; // 使用 byte[]
             bool isNewResult;
             // 调用新的P/Invoke签名
-            int len = GetPgsResult(buffer, buffer.Capacity, out isNewResult);
+            int len = GetPgsResult(buffer, buffer.Length, out isNewResult);
 
             if (len > 0 && isNewResult)
             {
-                // 处理新结果
-                return buffer.ToString();
+                // 处理新结果，使用UTF-8解码
+                return System.Text.Encoding.UTF8.GetString(buffer, 0, len);
             }
             return string.Empty; // 或者根据需要返回 null 或其他
         }
@@ -172,55 +151,55 @@ namespace AikitWpfDemo
         // 更新以下辅助方法以使用新的P/Invoke签名
         public static string GetHtkResultString( )
         {
-            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            byte[] buffer = new byte[8192]; // 使用 byte[]
             bool isNewResult;
-            int len = GetHtkResult(buffer, buffer.Capacity, out isNewResult);
+            int len = GetHtkResult(buffer, buffer.Length, out isNewResult);
 
             if (len > 0) // isNewResult 条件可以由调用者判断
             {
-                return buffer.ToString();
+                return System.Text.Encoding.UTF8.GetString(buffer, 0, len); // 使用UTF-8解码
             }
             return string.Empty;
         }
 
         public static string GetPlainResultString()
         {
-            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            byte[] buffer = new byte[8192]; // 使用 byte[]
             bool isNewResult;
-            int len = GetPlainResult(buffer, buffer.Capacity, out isNewResult);
+            int len = GetPlainResult(buffer, buffer.Length, out isNewResult);
 
             if (len > 0)
             {
-                return buffer.ToString();
+                return System.Text.Encoding.UTF8.GetString(buffer, 0, len); // 使用UTF-8解码
             }
             return string.Empty;
         }
 
         public static string GetVadResultString( )
         {
-            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+            byte[] buffer = new byte[8192]; // 使用 byte[]
             bool isNewResult;
-            int len = GetVadResult(buffer, buffer.Capacity, out isNewResult);
+            int len = GetVadResult(buffer, buffer.Length, out isNewResult);
 
             if (len > 0)
             {
-                return buffer.ToString();
+                return System.Text.Encoding.UTF8.GetString(buffer, 0, len); // 使用UTF-8解码
             }
             return string.Empty;
         }
 
-        public static string GetReadableResultString( )
-        {
-            StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
-            bool isNewResult;
-            int len = GetReadableResult(buffer, buffer.Capacity, out isNewResult);
+        // public static string GetReadableResultString( )
+        // {
+        //     StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
+        //     bool isNewResult;
+        //     int len = GetReadableResult(buffer, buffer.Capacity, out isNewResult);
 
-            if (len > 0)
-            {
-                return buffer.ToString();
-            }
-            return string.Empty;
-        }
+        //     if (len > 0)
+        //     {
+        //         return buffer.ToString();
+        //     }
+        //     return string.Empty;
+        // }
 
 
         #endregion

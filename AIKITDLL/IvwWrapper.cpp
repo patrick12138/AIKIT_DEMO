@@ -299,48 +299,61 @@ AIKITDLL_API int StartWakeupDetection(int threshold) {
 	}
 
 	// 初始化SDK (This function should also initialize AudioManager)
-	// Assuming InitializeAIKitSDK internally calls AIKIT_Init and AudioManager::GetInstance().Initialize()
-	int ret = AIKITDLL::InitializeAIKitSDK();
+	int ret = AIKITDLL::InitializeAIKitSDK(); // Ensure SDK and AudioManager are initialized
 	if (ret != 0) {
 		AIKITDLL::LogError("AIKit SDK 初始化失败，错误码: %d", ret);
-		return ret; // Propagate error
+		return ret;
 	}
 	AIKITDLL::LogInfo("AIKit SDK 初始化成功。");
 
-	// 启动唤醒会话
+	// 启动IVW能力会话
 	ret = AIKITDLL::ivw_start_session(IVW_ABILITY, &g_currentHandle, threshold);
 	if (ret != 0 || g_currentHandle == nullptr) {
 		AIKITDLL::LogError("ivw_start_session 失败，错误码: %d, 句柄: %p", ret, g_currentHandle);
-		// Consider calling UninitializeAIKitSDK or parts of it if only session failed but SDK init was ok
-		return (ret != 0 ? ret : -1); // Ensure a non-zero error code
+		// Ensure g_currentHandle is null if session start failed but handle was somehow assigned
+		if (g_currentHandle != nullptr) {
+			AIKIT::AIKIT_End(g_currentHandle); // Attempt to clean up if handle was created but start failed
+			g_currentHandle = nullptr;
+		}
+		return ret;
 	}
 	AIKITDLL::LogInfo("ivw_start_session 成功，句柄: %p", g_currentHandle);
 
-	// 创建数据构建器
+	// 创建或获取IVW的数据构建器
 	if (g_ivwDataBuilder == nullptr) {
 		g_ivwDataBuilder = AIKIT::AIKIT_DataBuilder::create();
+		if (!g_ivwDataBuilder) {
+			AIKITDLL::LogError("创建IVW DataBuilder失败");
+			AIKITDLL::ivw_stop_session(g_currentHandle);
+			g_currentHandle = nullptr;
+			return -1;
+		}
 	}
-	if (!g_ivwDataBuilder) {
-		AIKITDLL::LogError("创建 g_ivwDataBuilder 失败");
-		AIKITDLL::ivw_stop_session(g_currentHandle); // Clean up session
-		g_currentHandle = nullptr;
-		return -1; // Indicate error
-	}
-	AIKITDLL::LogInfo("g_ivwDataBuilder 创建成功: %p", g_ivwDataBuilder);
+	g_ivwDataBuilder->clear();
+	AIKITDLL::LogInfo("IVW DataBuilder创建/清空完毕 (%p)", g_ivwDataBuilder);
 
-	// 激活 AudioManager 以开始录音并输送给 IVW
-	if (!AIKITDLL::AudioManager::GetInstance().ActivateConsumer(AIKITDLL::AudioConsumer::IVW, g_currentHandle, g_ivwDataBuilder)) {
-		AIKITDLL::LogError("AudioManager ActivateConsumer 失败 (IVW)");
-		delete g_ivwDataBuilder;
-		g_ivwDataBuilder = nullptr;
+	// 激活AudioManager的IVW消费者，并指定audioKey为"wav"
+	bool activated = AIKITDLL::AudioManager::GetInstance().ActivateConsumer(
+		AIKITDLL::AudioConsumer::IVW, 
+		g_currentHandle, 
+		g_ivwDataBuilder,
+		"wav" // 指定IVW使用 "wav" 作为 audioKey
+	);
+
+	if (!activated) {
+		AIKITDLL::LogError("激活AudioManager IVW消费者失败");
 		AIKITDLL::ivw_stop_session(g_currentHandle);
 		g_currentHandle = nullptr;
-		return -1; // Indicate error
+		// Optionally delete g_ivwDataBuilder if it's managed per session and not globally reused
+		// delete g_ivwDataBuilder;
+		// g_ivwDataBuilder = nullptr;
+		return -1;
 	}
-	AIKITDLL::LogInfo("AudioManager ActivateConsumer 成功 (IVW)");
+	AIKITDLL::LogInfo("AudioManager IVW消费者激活成功");
 
-	AIKITDLL::LogInfo("StartWakeupDetection 完成，已激活 AudioManager 进行唤醒。");
-	return 0; // Success
+	AIKITDLL::wakeupFlag = 0; // 重置唤醒标志
+	AIKITDLL::LogInfo("唤醒检测已启动 (AudioManager)");
+	return 0;
 }
 
 // 停止语音唤醒检测

@@ -2,6 +2,7 @@
 #include "AudioManager.h"
 #include "aikit_biz_builder.h" // For AIKIT_Builder, AiAudio
 #include "Common.h"            // For AIKITDLL logging
+#include <string>
 
 namespace AIKITDLL {
 
@@ -75,7 +76,7 @@ namespace AIKITDLL {
 		LogInfo("AudioManager: Uninitialized.");
 	}
 
-	bool AudioManager::ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder) {
+	bool AudioManager::ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder, const char* audioKey) {
 		if (!is_initialized_) {
 			LogError("AudioManager: Cannot activate consumer, AudioManager not initialized.");
 			return false;
@@ -104,6 +105,7 @@ namespace AIKITDLL {
 		current_consumer_ = consumer;
 		active_handle_ = consumerHandle;
 		active_data_builder_ = consumerDataBuilder;
+		active_audio_key_ = audioKey; // 保存audioKey
 		audio_status_ = AIKIT_DataBegin;
 
 		if (!is_recording_) {
@@ -220,16 +222,21 @@ namespace AIKITDLL {
 	}
 
 	void AudioManager::ProcessAudioData(char* data, unsigned long len) {
-		if (!active_handle_ || !active_data_builder_) {
+		if (!active_handle_ || !active_data_builder_ || !active_audio_key_) {
 			return;
 		}
 
 		if (len == 0) {
+			// 当接收到空数据时，可能意味着音频流结束
+			if (audio_status_ != AIKIT_DataEnd) {
+				audio_status_ = AIKIT_DataEnd;
+				LogInfo("AudioManager: 音频流结束，设置状态为 AIKIT_DataEnd");
+			}
 			return;
 		}
 
 		active_data_builder_->clear();
-		AIKIT::AiAudio* aiAudio = AIKIT::AiAudio::get("wav")
+		AIKIT::AiAudio* aiAudio = AIKIT::AiAudio::get(active_audio_key_)
 			->data(data, len)
 			->status(audio_status_)
 			->valid();
@@ -249,10 +256,110 @@ namespace AIKITDLL {
 		int ret = AIKIT::AIKIT_Write(active_handle_, input_data);
 		if (ret != 0) {
 			LogError("AudioManager: AIKIT_Write failed. Error: %d. Consumer: %d", ret, static_cast<int>(current_consumer_));
+			return; // 写入失败时直接返回，避免继续读取
 		}
 
+		LogInfo("AudioManager: 进入 AIKIT_Read。");
+		AIKIT_OutputData* output = nullptr;
+		ret = AIKIT::AIKIT_Read(active_handle_, &output);
+		if (ret != 0) {
+			LogError("AudioManager: AIKIT_Read 失败，错误码: %d", ret);
+		}
+		else if (output != nullptr) {
+			// 处理识别结果
+			ProcessRecognitionResult(output);
+		}
+
+		// 更新音频状态
 		if (audio_status_ == AIKIT_DataBegin) {
 			audio_status_ = AIKIT_DataContinue;
+			LogInfo("AudioManager: 音频状态从 DataBegin 切换到 DataContinue");
 		}
+	}
+
+	// 新增方法：处理识别结果
+	void AudioManager::ProcessRecognitionResult(AIKIT_OutputData* output) {
+		if (!output) return;
+
+		AIKIT_BaseData* node = output->node;
+		bool foundCommand = false;
+		std::string recognizedText = "";
+		std::string resultType = "";
+
+		while (node != nullptr) {
+			if (node->key) {
+				resultType = std::string(node->key);
+				LogInfo("AudioManager: 结果类型 = %s", node->key);
+				
+				if (node->value && node->len > 0) {
+					std::string valueStr((char*)node->value, node->len);
+					LogInfo("AudioManager: 识别结果 = %s", valueStr.c_str());
+					
+					// 根据结果类型进行不同处理
+					if (resultType == "plain") {
+						// plain格式：最终完整识别结果
+						recognizedText = valueStr;
+						foundCommand = true;
+						LogInfo("AudioManager: 检测到完整命令词: %s", valueStr.c_str());
+					}
+					else if (resultType == "readable") {
+						// readable格式：JSON格式结果，包含置信度等详细信息
+						ProcessReadableResult(valueStr);
+					}
+					else if (resultType == "vad") {
+						// VAD结果：语音端点检测
+						ProcessVadResult(valueStr);
+					}
+					else if (resultType == "pgs") {
+						// 渐进式结果：实时刷屏显示
+						LogInfo("AudioManager: 渐进式识别: %s", valueStr.c_str());
+					}
+				}
+			}
+			node = node->next;
+		}
+
+		// 如果检测到有效命令词，可以触发相应回调
+		if (foundCommand && !recognizedText.empty()) {
+			OnCommandDetected(recognizedText);
+		}
+	}
+
+	// 新增方法：处理JSON格式的readable结果
+	void AudioManager::ProcessReadableResult(const std::string& jsonResult) {
+		// 这里可以解析JSON获取更详细的识别信息
+		// 包括置信度(sc)、命中的槽名(slot)、拼音(pinyin)等
+		LogInfo("AudioManager: JSON结果解析: %s", jsonResult.c_str());
+		
+		// TODO: 可以添加JSON解析逻辑，提取置信度等关键信息
+		// 例如使用 nlohmann/json 或其他JSON库
+	}
+
+	// 新增方法：处理VAD结果
+	void AudioManager::ProcessVadResult(const std::string& vadResult) {
+		LogInfo("AudioManager: VAD检测结果: %s", vadResult.c_str());
+		
+		// VAD结果可以帮助判断语音的开始和结束
+		// 当检测到语音结束时，可以设置audio_status_ = AIKIT_DataEnd
+		
+		// TODO: 解析VAD JSON结果，检查status字段
+		// 如果status为"SpeechAutoFinish"，表示语音自动结束
+		if (vadResult.find("SpeechAutoFinish") != std::string::npos) {
+			audio_status_ = AIKIT_DataEnd;
+			LogInfo("AudioManager: 检测到语音结束，设置状态为 AIKIT_DataEnd");
+		}
+	}
+
+	// 新增方法：命令词检测回调
+	void AudioManager::OnCommandDetected(const std::string& command) {
+		LogInfo("AudioManager: 检测到命令词: %s", command.c_str());
+		
+		// 保存识别结果供C#查询
+		lastEsrResult_ = command;
+		
+		// 这里可以添加命令词处理逻辑
+		// 例如：触发相应的操作、通知上层应用等
+		
+		// TODO: 根据具体业务需求实现命令响应逻辑
 	}
 } // namespace AIKITDLL

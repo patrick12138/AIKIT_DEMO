@@ -14,6 +14,7 @@
 #include "CnenEsrWrapper.h" // 假设包含 ESR_ABILITY 和 ESR 相关全局变量声明
 #include "EsrHelper.h"      // 假设包含 ProcessRecognitionResult 和相关全局变量声明
 #include <aikit_biz_type.h> // 确保 AIKIT_OutputData_Status_* 常量可用
+#include "AudioManager.h"
 
 // 添加宏定义
 #define FRAME_LEN 640 // 16k采样率的16bit音频，一帧的大小为640B, 时长20ms
@@ -54,7 +55,7 @@ namespace AIKITDLL {
 
 			// --- IVW (唤醒) 处理 ---
 			if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
-				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce) {
+				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce || output->node->status == AIKIT_DataBegin) {
 					if (output->node->len > 0) { // 确保有实际数据
 						AIKITDLL::wakeupDetected = true;
 						::wakeupFlag = 1;
@@ -342,6 +343,39 @@ extern "C" {
 	AIKITDLL_API const char* GetWakeupInfoString()
 	{
 		return AIKITDLL::wakeupInfoString.c_str();
+	}
+#ifdef __cplusplus
+}
+#endif
+
+// 获取命令词识别结果 (之前称为PGS结果)
+#ifdef __cplusplus
+extern "C" {
+#endif
+	AIKITDLL_API const char* GetPgsResult()
+	{
+		// 实际应返回命令词识别的最终结果，这里暂时用 lastEsrKeywordResult
+		// 您可能需要根据实际的变量名调整
+		if (AIKITDLL::esrStatus == AIKITDLL::ESR_STATUS_SUCCESS_INTERNAL) {
+			return AIKITDLL::lastEsrKeywordResult.c_str();
+		} else if (AIKITDLL::esrStatus == AIKITDLL::ESR_STATUS_FAILED_INTERNAL) {
+			return AIKITDLL::lastEsrErrorInfo.c_str(); // 或者一个表示错误的特定字符串
+		} else {
+			return "PGS_NO_RESULT"; // 或者其他表示无结果或处理中的状态
+		}
+	}
+#ifdef __cplusplus
+}
+#endif
+
+// 获取最后的ESR识别结果
+#ifdef __cplusplus
+extern "C" {
+#endif
+	__declspec(dllexport) const char* GetLastEsrResult() {
+		// 直接返回AudioManager单例中的lastEsrResult_字符串指针
+		// 注意：C#端调用后应尽快复制字符串内容，避免被后续识别覆盖
+		return AIKITDLL::AudioManager::GetInstance().lastEsrResult_.c_str();
 	}
 #ifdef __cplusplus
 }

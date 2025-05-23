@@ -7,6 +7,7 @@
 #include "aikit_biz_api.h" // For AIKIT types (AIKIT_HANDLE, AIKIT_DataBuilder)
 #include "aikit_constant.h" // For AIKIT_DataStatus
 #include "Common.h"   // For AIKITDLL logging (LogDebug, LogInfo etc.)
+#include <string> // Added for std::string
 
 // Forward declaration if AIKIT_HANDLE is not fully defined by aikit_biz_api.h alone
 // struct AIKIT_HANDLE_TAG;
@@ -37,7 +38,8 @@ namespace AIKITDLL {
 		// consumer: 要激活的消费者类型 (IVW 或 ESR)
 		// consumerHandle: 对应AIKIT会话的句柄
 		// consumerDataBuilder: 对应AIKIT会话的数据构造器
-		bool ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder);
+		// audioKey: 当前消费者的音频key（"wav"或"pcm"）
+		bool ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder, const char* audioKey);
 
 		// 停用指定的音频消费者。
 		// 如果没有其他活动的消费者，将停止物理录音。
@@ -52,7 +54,7 @@ namespace AIKITDLL {
 
 		bool IsRecording() const;
 
-	private:
+	public:
 		AudioManager();
 		~AudioManager();
 
@@ -60,6 +62,18 @@ namespace AIKITDLL {
 		static void AudioCallback(char* data, unsigned long len, void* userData);
 		// 处理从 winrec 收到的音频数据
 		void ProcessAudioData(char* data, unsigned long len);
+
+		// 新增方法：处理识别结果
+		void ProcessRecognitionResult(AIKIT_OutputData* output);
+
+		// 新增方法：处理JSON格式的readable结果
+		void ProcessReadableResult(const std::string& jsonResult);
+
+		// 新增方法：处理VAD结果
+		void ProcessVadResult(const std::string& vadResult);
+
+		// 新增方法：命令词检测回调
+		void OnCommandDetected(const std::string& command);
 
 		recorder* recorder_;
 		AudioConsumer current_consumer_;
@@ -71,6 +85,8 @@ namespace AIKITDLL {
 		bool is_recording_; // 物理录音是否正在进行
 		int device_id_;
 		WAVEFORMATEX wave_format_; // 音频格式
+		const char* active_audio_key_; // 当前消费者的音频key（"wav"或"pcm"）
+		std::string lastEsrResult_; // 保存ESR识别结果，供C#查询
 
 		static AudioManager* instance_;
 	};
