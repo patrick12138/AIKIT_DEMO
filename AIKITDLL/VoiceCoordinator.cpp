@@ -318,7 +318,7 @@ namespace AIKITDLL {    // 静态成员初始化
             AudioConsumer::IVW,
             unified_handle_,
             unified_data_builder_,
-            "audio" // 统一使用"audio"
+            "wav" // 统一使用"audio"
         );
         
         if (!activated) {
@@ -533,3 +533,93 @@ namespace AIKITDLL {    // 静态成员初始化
     }
 
 } // namespace AIKITDLL
+
+// ================================
+// 全局便捷函数的实现 (extern "C")
+// ================================
+
+extern "C" {
+    // 启动统一的语音交互流程
+    int StartUnifiedVoiceInteraction(int wakeupThreshold, int esrTimeout) {
+        try {
+            AIKITDLL::LogInfo("调用 StartUnifiedVoiceInteraction，参数: wakeupThreshold=%d, esrTimeout=%d", 
+                    wakeupThreshold, esrTimeout);
+            
+            auto& coordinator = AIKITDLL::VoiceCoordinator::GetInstance();
+            int result = coordinator.StartVoiceInteraction(wakeupThreshold, esrTimeout);
+            
+            AIKITDLL::LogInfo("StartUnifiedVoiceInteraction 完成，返回码: %d", result);
+            return result;
+        }
+        catch (const std::exception& ex) {
+            AIKITDLL::LogError("StartUnifiedVoiceInteraction 异常: %s", ex.what());
+            return -1;
+        }
+        catch (...) {
+            AIKITDLL::LogError("StartUnifiedVoiceInteraction 发生未知异常");
+            return -1;
+        }
+    }
+    
+    // 停止统一的语音交互流程
+    int StopUnifiedVoiceInteraction() {
+        try {
+            AIKITDLL::LogInfo("调用 StopUnifiedVoiceInteraction");
+            
+            auto& coordinator = AIKITDLL::VoiceCoordinator::GetInstance();
+            int result = coordinator.StopVoiceInteraction();
+            
+            AIKITDLL::LogInfo("StopUnifiedVoiceInteraction 完成，返回码: %d", result);
+            return result;
+        }
+        catch (const std::exception& ex) {
+            AIKITDLL::LogError("StopUnifiedVoiceInteraction 异常: %s", ex.what());
+            return -1;
+        }
+        catch (...) {
+            AIKITDLL::LogError("StopUnifiedVoiceInteraction 发生未知异常");
+            return -1;
+        }
+    }
+    
+    // 获取统一语音交互状态
+    int GetUnifiedVoiceState() {
+        try {
+            auto& coordinator = AIKITDLL::VoiceCoordinator::GetInstance();
+            AIKITDLL::VoiceState state = coordinator.GetCurrentState();
+            
+            // 将枚举转换为整数返回
+            int stateValue = static_cast<int>(state);
+            AIKITDLL::LogInfo("GetUnifiedVoiceState 返回状态: %d", stateValue);
+            return stateValue;
+        }
+        catch (const std::exception& ex) {
+            AIKITDLL::LogError("GetUnifiedVoiceState 异常: %s", ex.what());
+            return -1;
+        }
+        catch (...) {
+            AIKITDLL::LogError("GetUnifiedVoiceState 发生未知异常");
+            return -1;
+        }
+    }
+    
+    // 检查统一语音交互是否运行
+    int IsUnifiedVoiceInteractionRunning() {
+        try {
+            auto& coordinator = AIKITDLL::VoiceCoordinator::GetInstance();
+            bool isRunning = coordinator.IsRunning();
+            
+            int result = isRunning ? 1 : 0;
+            AIKITDLL::LogInfo("IsUnifiedVoiceInteractionRunning 返回: %d", result);
+            return result;
+        }
+        catch (const std::exception& ex) {
+            AIKITDLL::LogError("IsUnifiedVoiceInteractionRunning 异常: %s", ex.what());
+            return -1;
+        }
+        catch (...) {
+            AIKITDLL::LogError("IsUnifiedVoiceInteractionRunning 发生未知异常");
+            return -1;
+        }
+    }
+}

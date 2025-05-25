@@ -105,25 +105,9 @@ namespace AIKITDLL {
         
         // 超时管理
         std::chrono::steady_clock::time_point last_state_change_;
-        
-        // 调试和日志
+          // 调试和日志
         std::string last_error_;
         std::atomic<int> loop_iteration_;
     };
-
-    // 全局便捷函数
-    extern "C" {
-        // 启动统一的语音交互流程
-        AIKITDLL_API int StartUnifiedVoiceInteraction(int wakeupThreshold, int esrTimeout);
-        
-        // 停止统一的语音交互流程
-        AIKITDLL_API int StopUnifiedVoiceInteraction();
-        
-        // 获取统一语音交互状态
-        AIKITDLL_API int GetUnifiedVoiceState();
-        
-        // 检查统一语音交互是否运行
-        AIKITDLL_API int IsUnifiedVoiceInteractionRunning();
-    }
 
 } // namespace AIKITDLL

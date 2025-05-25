@@ -29,6 +29,12 @@ extern "C" {
 	// 获取命令词识别结果 (之前称为PGS结果)
 	AIKITDLL_API const char* GetPgsResult();
 
+	// VoiceCoordinator 统一语音交互接口
+	AIKITDLL_API int StartUnifiedVoiceInteraction(int wakeupThreshold, int esrTimeout);
+	AIKITDLL_API int StopUnifiedVoiceInteraction();
+	AIKITDLL_API int GetUnifiedVoiceState();
+	AIKITDLL_API int IsUnifiedVoiceInteractionRunning();
+
 #ifdef __cplusplus
 }
 #endif
