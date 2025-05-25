@@ -60,9 +60,6 @@ namespace AIKITDLL {
 		// 超时检查和处理
 		void CheckTimeout();
 
-		// SDK逆初始化
-		static void UnInitSDK();
-
 	public:
 		AudioManager();
 		~AudioManager();

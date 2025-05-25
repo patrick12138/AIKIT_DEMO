@@ -71,9 +71,9 @@ namespace AIKITDLL {
         int StartCommandRecognition();
         int StopCommandRecognition();
         bool CheckCommandStatus();
-        
-        // 资源清理
-        void CleanupResources();
+          // 资源清理
+        void CleanupResources();        // 全局清理
+        void CleanupCurrentSession();   // 只清理当前会话
         
         // 状态同步
         void TransitionToState(VoiceState newState);

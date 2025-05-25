@@ -95,7 +95,6 @@ namespace AikitWpfDemo
             {
                 NativeMethods.StopWakeupDetection();
                 NativeMethods.StopEsrMicrophoneDetection();
-                NativeMethods.UnInitSDK();
             }
             catch (Exception ex)
             {

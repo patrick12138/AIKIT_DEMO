@@ -55,10 +55,10 @@ namespace AIKITDLL {
 
 			// --- IVW (唤醒) 处理 ---
 			if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
-				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce || output->node->status == AIKIT_DataBegin) {
-					if (output->node->len > 0) { // 确保有实际数据
+				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce || output->node->status == AIKIT_DataBegin) {					if (output->node->len > 0) { // 确保有实际数据
 						AIKITDLL::wakeupDetected = true;
 						::wakeupFlag = 1;
+						AIKITDLL::wakeupFlag.store(1); // 同时设置命名空间中的atomic变量
 						AIKITDLL::wakeupInfoString = resultText;
 						AIKITDLL::lastResult = "唤醒结果: " + resultText;
 						LogInfo("唤醒词检测到 (status %d): %s", output->node->status, resultText.c_str());
@@ -390,17 +390,6 @@ extern "C" {
 		// 注意：C#端调用后应尽快复制字符串内容，避免被后续识别覆盖
 		return AIKITDLL::AudioManager::GetInstance().lastPgsResult_.c_str();
 	}
-#ifdef __cplusplus
-}
-#endif
-
-// 反初始化SDK
-#ifdef __cplusplus
-extern "C" {
-#endif
-    AIKITDLL_API void UnInitSDK() {
-        AIKITDLL::AudioManager::GetInstance().UnInitSDK();
-    }
 #ifdef __cplusplus
 }
 #endif

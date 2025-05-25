@@ -2,6 +2,7 @@
 #include "AudioManager.h"
 #include "aikit_biz_builder.h" // For AIKIT_Builder, AiAudio
 #include "Common.h"            // For AIKITDLL logging
+#include "CnenEsrWrapper.h"    // For ESR variables access
 #include <string>
 #include <chrono> // For timeout implementation
 
@@ -15,7 +16,6 @@ namespace AIKITDLL {
 		}
 		return *instance_;
 	}
-
 	AudioManager::AudioManager()
 		: recorder_(nullptr),
 		current_consumer_(AudioConsumer::NONE),
@@ -24,7 +24,8 @@ namespace AIKITDLL {
 		audio_status_(AIKIT_DataBegin),
 		is_initialized_(false),
 		is_recording_(false),
-		device_id_(-1) { // Default device ID for winrec
+		device_id_(-1),
+		esr_start_time_(std::chrono::steady_clock::now()) { // 初始化ESR开始时间为当前时间
 		// Initialize wave_format_ (example, adjust as needed)
 		wave_format_.wFormatTag = WAVE_FORMAT_PCM;
 		wave_format_.nChannels = 1;
@@ -102,12 +103,17 @@ namespace AIKITDLL {
 			active_data_builder_ = nullptr;
 			// We don't stop/start physical recording if it's already running and we're just switching logical consumer.
 		}
-
 		current_consumer_ = consumer;
 		active_handle_ = consumerHandle;
 		active_data_builder_ = consumerDataBuilder;
 		active_audio_key_ = audioKey; // 保存audioKey
 		audio_status_ = AIKIT_DataBegin;
+
+		// 如果是ESR消费者，记录开始时间用于超时检查
+		if (consumer == AudioConsumer::ESR) {
+			esr_start_time_ = std::chrono::steady_clock::now();
+			LogInfo("AudioManager: ESR开始时间已记录，超时时间为%d秒", ESR_TIMEOUT_SECONDS);
+		}
 
 		if (!is_recording_) {
 			if (!recorder_) {
@@ -256,22 +262,29 @@ namespace AIKITDLL {
 			LogError("AudioManager: Failed to build AIKIT_InputData.");
 			return;
 		}
-
 		int ret = AIKIT::AIKIT_Write(active_handle_, input_data);
 		if (ret != 0) {
 			LogError("AudioManager: AIKIT_Write failed. Error: %d. Consumer: %d", ret, static_cast<int>(current_consumer_));
 			return; // 写入失败时直接返回，避免继续读取
 		}
 
-		LogInfo("AudioManager: 进入 AIKIT_Read。");
-		AIKIT_OutputData* output = nullptr;
-		ret = AIKIT::AIKIT_Read(active_handle_, &output);
-		if (ret != 0) {
-			LogError("AudioManager: AIKIT_Read 失败，错误码: %d", ret);
-		}
-		else if (output != nullptr) {
-			// 处理识别结果
-			ProcessRecognitionResult(output);
+		// 根据audioKey判断是否需要read
+		// IVW（audioKey为"wav"）不需要read，结果通过OnOutput回调返回
+		// ESR需要read来获取识别结果
+		if (active_audio_key_ && strcmp(active_audio_key_, "wav") == 0) {
+			LogInfo("AudioManager: IVW模式，音频写入完成，等待OnOutput回调");
+			// IVW模式：只write，不read，结果通过OnOutput回调返回
+		} else {
+			LogInfo("AudioManager: ESR模式，进入 AIKIT_Read");
+			AIKIT_OutputData* output = nullptr;
+			ret = AIKIT::AIKIT_Read(active_handle_, &output);
+			if (ret != 0) {
+				LogError("AudioManager: AIKIT_Read 失败，错误码: %d", ret);
+			}
+			else if (output != nullptr) {
+				// 处理识别结果
+				ProcessRecognitionResult(output);
+			}
 		}
 
 		// 更新音频状态
@@ -363,7 +376,6 @@ namespace AIKITDLL {
 
 		// TODO: 根据具体业务需求实现命令响应逻辑
 	}
-
 	// 实现超时检查
 	void AudioManager::CheckTimeout() {
 		if (current_consumer_ == AudioConsumer::ESR) {
@@ -372,23 +384,13 @@ namespace AIKITDLL {
 
 			if (elapsed >= ESR_TIMEOUT_SECONDS) {
 				LogInfo("AudioManager: ESR超时(%d秒)，自动停止", ESR_TIMEOUT_SECONDS);
-				UnInitSDK();
+				
+				// 设置ESR超时状态
+				std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
+				AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_FAILED_INTERNAL;
+				AIKITDLL::lastEsrErrorInfo = "识别超时";
+				
 				ForceStopRecording();
-			}
-		}
-	}
-
-	// 实现SDK逆初始化
-	void AudioManager::UnInitSDK() {
-		if (AIKITDLL::isInitialized) {
-			int ret = AIKIT::AIKIT_UnInit();
-			AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_NONE_INTERNAL;
-			if (ret == 0) {
-				AIKITDLL::isInitialized = false;
-				LogInfo("SDK逆初始化成功");
-			}
-			else {
-				LogError("SDK逆初始化失败，错误码: %d", ret);
 			}
 		}
 	}

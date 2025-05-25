@@ -6,6 +6,9 @@
 #include "AudioManager.h"
 #include "aikit_biz_builder.h" // Ensure AIKIT::AIKIT_DataBuilder is known
 
+// 全局变量声明
+extern int wakeupFlag;
+
 namespace AIKITDLL {
 	std::atomic<int> wakeupFlag(0);
 
@@ -350,8 +353,8 @@ AIKITDLL_API int StartWakeupDetection(int threshold) {
 		return -1;
 	}
 	AIKITDLL::LogInfo("AudioManager IVW消费者激活成功");
-
 	AIKITDLL::wakeupFlag = 0; // 重置唤醒标志
+	::wakeupFlag = 0; // 也重置全局变量
 	AIKITDLL::LogInfo("唤醒检测已启动 (AudioManager)");
 	return 0;
 }
