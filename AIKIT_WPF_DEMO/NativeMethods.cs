@@ -33,10 +33,9 @@ namespace AikitWpfDemo
 
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetLastResult();        
-        
-        // 新增: 获取ESR最终结果字符串接口
+          // 新增: 获取ESR最终结果字符串接口 (修复函数名匹配问题)
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr GetLastEsrResultString();
+        public static extern IntPtr GetLastEsrResult();
         
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StartEsrMicrophone();
@@ -229,13 +228,10 @@ namespace AikitWpfDemo
         //         return buffer.ToString();
         //     }
         //     return string.Empty;
-        // }
-
-
-        // 新增: 获取ESR最终结果字符串辅助方法
+        // }        // 新增: 获取ESR最终结果字符串辅助方法 (修复函数名匹配问题)
         public static string GetLastEsrResultStringResult()
         {
-            IntPtr ptr = GetLastEsrResultString();
+            IntPtr ptr = GetLastEsrResult();
             if (ptr != IntPtr.Zero)
             {
                 int len = 0;

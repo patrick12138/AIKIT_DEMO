@@ -251,20 +251,23 @@ namespace AIKITDLL {    // 静态成员初始化
 			TransitionToState(VoiceState::CommandCompleted);
 		}
 	}
-
 	void VoiceCoordinator::HandleCommandCompleted() {
 		LogInfo("处理命令词完成状态");
 
 		// 停止命令词识别
 		StopCommandRecognition();
 
+		// 确保句柄被清理，强制重新启动唤醒检测
+		unified_handle_ = nullptr;
+
 		// 短暂延迟
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+		LogInfo("命令处理完成，准备返回唤醒监听状态");
 
 		// 返回唤醒监听
 		TransitionToState(VoiceState::Idle);
 	}
-
 	void VoiceCoordinator::HandleTimeout() {
 		LogInfo("处理超时状态");
 
@@ -274,20 +277,27 @@ namespace AIKITDLL {    // 静态成员初始化
 		// 短暂延迟
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
+		// 确保句柄被清理，强制重新启动唤醒检测
+		unified_handle_ = nullptr;
+		
+		LogInfo("超时处理完成，准备返回唤醒监听状态");
+
 		// 返回唤醒监听
 		TransitionToState(VoiceState::Idle);
-	}
-	void VoiceCoordinator::HandleError() {
+	}	void VoiceCoordinator::HandleError() {
 		LogError("处理错误状态: %s", last_error_.c_str());
 
 		// 清理当前会话资源（不是全局SDK）
 		CleanupCurrentSession();
 
+		// 确保句柄被清理，强制重新启动唤醒检测
+		unified_handle_ = nullptr;
+
 		// 短暂延迟后重试
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
 		// 重置错误状态，返回待机状态重新开始会话
-		LogInfo("错误恢复完成，返回唤醒监听");
+		LogInfo("错误恢复完成，准备返回唤醒监听状态");
 		last_error_.clear();
 		TransitionToState(VoiceState::Idle);
 	}
@@ -379,7 +389,7 @@ namespace AIKITDLL {    // 静态成员初始化
 
 		// 指定数据集
 		int index[] = { 0 };
-		int ret = AIKIT::AIKIT_SpecifyDataSet(ESR_ABILITY, "FSA", index, 1);
+		int ret = AIKIT::AIKIT_SpecifyDataSet(ESR_ABILITY, "FSA", index, sizeof(index) / sizeof(int));
 		if (ret != 0) {
 			LogError("指定ESR数据集失败: %d", ret);
 			delete paramBuilder;

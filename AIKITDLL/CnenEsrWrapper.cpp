@@ -67,11 +67,18 @@ int CnenEsrInit()
     if (customBuilder == nullptr) {
         AIKITDLL::LogError("创建ESR CustomBuilder失败");
         return -1;
-    }
-
-    customBuilder->clear();
-    // TODO: 确认资源路径是否正确，尤其是在WPF调用场景下. 通常SDK会处理相对路径，但需测试。
-    customBuilder->textPath("FSA", ".\\resource\\cnenesr\\fsa\\cn_fsa.txt", 0);
+    }    customBuilder->clear();
+    
+    // 根据当前架构确定资源路径
+    std::string resourcePath;
+#ifdef _WIN64
+    resourcePath = ".\\resource\\cnenesr\\fsa\\cn_fsa.txt";
+#else
+    resourcePath = ".\\Win32\\Debug\\resource\\cnenesr\\fsa\\cn_fsa.txt";
+#endif
+    
+    AIKITDLL::LogInfo("尝试加载ESR FSA文件: %s", resourcePath.c_str());
+    customBuilder->textPath("FSA", resourcePath.c_str(), 0);
 
     AIKITDLL::LogInfo("正在加载ESR FSA数据...");
     ret = AIKIT::AIKIT_LoadData(AIKITDLL::ESR_ABILITY_ID, AIKIT::AIKIT_Builder::build(customBuilder)); // 使用常量

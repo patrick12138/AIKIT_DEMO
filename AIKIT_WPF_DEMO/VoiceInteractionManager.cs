@@ -214,8 +214,7 @@ namespace AikitWpfDemo
                 await TransitionToState(VoiceState.ListeningCommand);
             }
         }
-        
-        // 处理监听命令词
+          // 处理监听命令词
         private async Task HandleListeningCommand()
         {            LogMessage("开始监听命令词...");
             
@@ -224,15 +223,11 @@ namespace AikitWpfDemo
             
             try
             {
-                // 启动命令词识别
-                int ret = NativeMethods.StartEsrMicrophoneDetection();
-                if (ret != 0)
-                {
-                    LogMessage($"启动命令词识别失败: {ret}");
-                    await TransitionToState(VoiceState.Error);
-                    return;                }
+                // 注意：使用统一语音交互系统时，不需要手动启动ESR检测
+                // 统一语音交互系统会自动处理从唤醒词到命令词的转换
+                LogMessage("统一语音交互系统已自动启动命令词识别，WPF只负责状态监控");
                 
-                // 设置命令词监听超时
+                // 设置命令词监听超时（作为备用机制）
                 if (_timeoutTimer != null)
                 {
                     _timeoutTimer.Interval = TimeSpan.FromSeconds(COMMAND_TIMEOUT);
@@ -242,7 +237,7 @@ namespace AikitWpfDemo
             }
             catch (Exception ex)
             {
-                LogMessage($"启动命令词识别异常: {ex.Message}");
+                LogMessage($"监听命令词状态设置异常: {ex.Message}");
                 await TransitionToState(VoiceState.Error);
             }
         }
@@ -284,27 +279,30 @@ namespace AikitWpfDemo
                 LogMessage($"处理结果异常: {ex.Message}");
                 await TransitionToState(VoiceState.Error);
             }
-        }
-          // 处理超时或错误
+        }          // 处理超时或错误
         private async Task HandleTimeoutOrError()
         {
-            LogMessage("处理超时或错误，返回待机状态");
+            LogMessage("处理超时或错误，统一语音交互系统会自动恢复");
             
-            try
-            {
-                // 停止统一语音交互
-                NativeMethods.StopUnifiedVoiceInteraction();
-            }
-            catch { }
+            // 注意：不强制停止统一语音交互系统，让它自然处理超时和恢复
+            // 统一语音交互系统具有自动恢复机制
             
             // 显示超时信息
             if (_currentState == VoiceState.Timeout)
             {
-                await _popupManager.ShowPopupWithAutoCloseAsync("监听超时", 1500);
+                await _popupManager.ShowPopupWithAutoCloseAsync("监听超时，正在重新启动...", 2000);
+                LogMessage("ESR识别超时，统一语音交互系统将自动返回唤醒监听状态");
+            }
+            else
+            {
+                await _popupManager.ShowPopupWithAutoCloseAsync("发生错误，正在恢复...", 2000);
+                LogMessage("发生错误，统一语音交互系统将自动恢复");
             }
             
-            // 等待1秒后返回待机
-            await Task.Delay(1000);
+            // 短暂等待让用户看到提示信息
+            await Task.Delay(1500);
+            
+            // 返回待机状态，开始下一轮监控
             await TransitionToState(VoiceState.Idle);
         }
           

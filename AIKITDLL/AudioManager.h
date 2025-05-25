@@ -77,9 +77,11 @@ namespace AIKITDLL {
 
 		// 新增方法：处理VAD结果
 		void ProcessVadResult(const std::string& vadResult);
-
 		// 新增方法：命令词检测回调
 		void OnCommandDetected(const std::string& command);
+
+		// 新增方法：清理音频缓冲区，防止旧数据干扰新会话
+		void ClearAudioBuffers();
 
 		recorder* recorder_;
 		AudioConsumer current_consumer_;

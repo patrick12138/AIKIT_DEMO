@@ -94,7 +94,6 @@ namespace AIKITDLL {
 		}
 
 		LogInfo("AudioManager: Attempting to activate consumer: %d", static_cast<int>(consumer));
-
 		if (current_consumer_ != AudioConsumer::NONE && current_consumer_ != consumer) {
 			LogWarning("AudioManager: Another consumer (%d) was active. Deactivating it first. The previous consumer should have called DeactivateConsumer.", static_cast<int>(current_consumer_));
 			// This implies the previous consumer did not clean up properly by calling DeactivateConsumer.
@@ -102,13 +101,22 @@ namespace AIKITDLL {
 			// For safety, ensure the old consumer's resources are nulled out here.
 			active_handle_ = nullptr;
 			active_data_builder_ = nullptr;
-			// We don't stop/start physical recording if it's already running and we're just switching logical consumer.
-		}
+			// 清理音频缓冲区防止旧数据干扰新会话
+			ClearAudioBuffers();		}
+		
+		// 记录旧的消费者类型用于判断
+		AudioConsumer oldConsumer = current_consumer_;
+		
 		current_consumer_ = consumer;
 		active_handle_ = consumerHandle;
 		active_data_builder_ = consumerDataBuilder;
 		active_audio_key_ = audioKey; // 保存audioKey
 		audio_status_ = AIKIT_DataBegin;
+
+		// 如果是消费者切换且正在录音，清理音频缓冲区
+		if (is_recording_ && oldConsumer != consumer && oldConsumer != AudioConsumer::NONE) {
+			ClearAudioBuffers();
+		}
 
 		// 如果是ESR消费者，记录开始时间用于超时检查
 		if (consumer == AudioConsumer::ESR) {
@@ -401,8 +409,34 @@ namespace AIKITDLL {
 				AIKITDLL::lastEsrErrorInfo = "识别超时";
 				
 				ForceStopRecording();
+			}		}
+	}
+
+	// 新增方法：清理音频缓冲区，防止旧数据干扰新会话
+	void AudioManager::ClearAudioBuffers() {
+		LogInfo("AudioManager: 清理音频缓冲区以防止旧数据干扰");
+		
+		if (recorder_ && is_recording_) {
+			LogInfo("AudioManager: 正在重置录音设备缓冲区");
+			
+			// 暂时停止录音以清理缓冲区
+			stop_record(recorder_);
+			
+			// 等待一小段时间确保缓冲区被清理
+			Sleep(50);
+			
+			// 重新启动录音
+			int start_ret = start_record(recorder_);
+			if (start_ret != 0) {
+				LogError("AudioManager: 重新启动录音失败，错误码: %d", start_ret);
+			} else {
+				LogInfo("AudioManager: 音频缓冲区清理完成，录音已重新启动");
 			}
 		}
+		
+		// 重置音频状态
+		audio_status_ = AIKIT_DataBegin;
+		LogInfo("AudioManager: 音频状态重置为 AIKIT_DataBegin");
 	}
 
 } // namespace AIKITDLL
