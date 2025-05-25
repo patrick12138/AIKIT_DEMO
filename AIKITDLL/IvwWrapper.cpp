@@ -31,7 +31,7 @@ namespace AIKITDLL {
 		LogInfo("已设置唤醒阈值: %s", thresholdParam.c_str());
 
 		// 启动能力
-		LogInfo("正在启动能力...");
+		LogInfo("正在启动IVW语音唤醒能力...");
 		ret = AIKIT::AIKIT_Start(abilityID, AIKIT::AIKIT_Builder::build(paramBuilder), nullptr, outHandle);
 		if (ret != 0) {
 			LogError("启动能力失败，错误码: %d", ret);

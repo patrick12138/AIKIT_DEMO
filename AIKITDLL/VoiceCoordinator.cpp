@@ -54,51 +54,51 @@ namespace AIKITDLL {    // 静态成员初始化
 		CleanupResources();
 		LogInfo("VoiceCoordinator 已销毁");
 	}    int VoiceCoordinator::StartVoiceInteraction(int wakeupThreshold, int esrTimeout) {
-        std::lock_guard<std::mutex> lock(state_mutex_);
+		std::lock_guard<std::mutex> lock(state_mutex_);
 
-        // 检查是否已经在运行
-        if (is_running_.load()) {
-            LogWarning("语音交互循环已在运行，跳过重复启动");
-            return 0; // 返回成功，避免上层认为是错误
-        }
+		// 检查是否已经在运行
+		if (is_running_.load()) {
+			LogWarning("语音交互循环已在运行，跳过重复启动");
+			return 0; // 返回成功，避免上层认为是错误
+		}
 
-        // SDK初始化
-        int sdkInitRet = InitializeAIKitSDK();
-        if (sdkInitRet != 0) {
-            LogError("AIKIT SDK 初始化失败，错误码: %d", sdkInitRet);
-            return -1;
-        }
+		// SDK初始化
+		int sdkInitRet = InitializeAIKitSDK();
+		if (sdkInitRet != 0) {
+			LogError("AIKIT SDK 初始化失败，错误码: %d", sdkInitRet);
+			return -1;
+		}
 
-        LogInfo("启动统一语音交互循环，唤醒阈值: %d, ESR超时: %d秒", wakeupThreshold, esrTimeout);
+		LogInfo("启动统一语音交互循环，唤醒阈值: %d, ESR超时: %d秒", wakeupThreshold, esrTimeout);
 
-        // 保存参数
-        wakeup_threshold_ = wakeupThreshold;
-        esr_timeout_ = esrTimeout;
+		// 保存参数
+		wakeup_threshold_ = wakeupThreshold;
+		esr_timeout_ = esrTimeout;
 
-        // 重置状态
-        should_stop_ = false;
-        current_state_ = VoiceState::Idle;
-        last_error_.clear();
-        loop_iteration_ = 0;
-        
-        // 清理之前的资源
-        CleanupResources();
+		// 重置状态
+		should_stop_ = false;
+		current_state_ = VoiceState::Idle;
+		last_error_.clear();
+		loop_iteration_ = 0;
 
-        LogInfo("SDK已准备就绪，开始语音交互循环");
+		// 清理之前的资源
+		CleanupResources();
 
-        // 启动循环线程
-        try {
-            is_running_ = true;
-            loop_thread_ = std::thread(&VoiceCoordinator::VoiceInteractionLoop, this);
-            LogInfo("语音交互循环线程已启动");
-            return 0;
-        }
-        catch (const std::exception& e) {
-            LogError("启动语音交互循环线程失败: %s", e.what());
-            is_running_ = false;
-            return -1;
-        }
-    }
+		LogInfo("SDK已准备就绪，开始语音交互循环");
+
+		// 启动循环线程
+		try {
+			is_running_ = true;
+			loop_thread_ = std::thread(&VoiceCoordinator::VoiceInteractionLoop, this);
+			LogInfo("语音交互循环线程已启动");
+			return 0;
+		}
+		catch (const std::exception& e) {
+			LogError("启动语音交互循环线程失败: %s", e.what());
+			is_running_ = false;
+			return -1;
+		}
+	}
 
 	int VoiceCoordinator::StopVoiceInteraction() {
 		LogInfo("停止语音交互循环");
@@ -250,51 +250,61 @@ namespace AIKITDLL {    // 静态成员初始化
 			LogInfo("命令词识别完成！");
 			TransitionToState(VoiceState::CommandCompleted);
 		}
-	}
-	void VoiceCoordinator::HandleCommandCompleted() {
+	}	void VoiceCoordinator::HandleCommandCompleted() {
 		LogInfo("处理命令词完成状态");
 
 		// 停止命令词识别
 		StopCommandRecognition();
 
+		// **添加**：清理音频缓冲区，确保下次唤醒检测的纯净性
+		LogInfo("命令完成状态下清理音频缓冲区");
+		AudioManager::GetInstance().ClearAudioBuffers();
+
 		// 确保句柄被清理，强制重新启动唤醒检测
 		unified_handle_ = nullptr;
 
-		// 短暂延迟
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		// 适当延长延迟时间，确保缓冲区清理完成
+		std::this_thread::sleep_for(std::chrono::milliseconds(1200));
 
 		LogInfo("命令处理完成，准备返回唤醒监听状态");
 
 		// 返回唤醒监听
 		TransitionToState(VoiceState::Idle);
-	}
-	void VoiceCoordinator::HandleTimeout() {
+	}void VoiceCoordinator::HandleTimeout() {
 		LogInfo("处理超时状态");
 
 		// 清理当前会话
 		StopCommandRecognition();
 
-		// 短暂延迟
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		// **关键修复**：清理音频缓冲区，防止残留音频数据造成误检测
+		LogInfo("超时状态下清理音频缓冲区，防止误检测");
+		AudioManager::GetInstance().ClearAudioBuffers();
+
+		// 延长延迟时间，确保缓冲区清理完成
+		std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
 		// 确保句柄被清理，强制重新启动唤醒检测
 		unified_handle_ = nullptr;
-		
+
 		LogInfo("超时处理完成，准备返回唤醒监听状态");
 
 		// 返回唤醒监听
 		TransitionToState(VoiceState::Idle);
-	}	void VoiceCoordinator::HandleError() {
+	}void VoiceCoordinator::HandleError() {
 		LogError("处理错误状态: %s", last_error_.c_str());
 
 		// 清理当前会话资源（不是全局SDK）
 		CleanupCurrentSession();
 
+		// **添加**：清理音频缓冲区，防止错误状态下的音频残留
+		LogInfo("错误状态下清理音频缓冲区");
+		AudioManager::GetInstance().ClearAudioBuffers();
+
 		// 确保句柄被清理，强制重新启动唤醒检测
 		unified_handle_ = nullptr;
 
-		// 短暂延迟后重试
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		// 延长延迟时间，确保彻底清理
+		std::this_thread::sleep_for(std::chrono::milliseconds(1200));
 
 		// 重置错误状态，返回待机状态重新开始会话
 		LogInfo("错误恢复完成，准备返回唤醒监听状态");
@@ -375,6 +385,13 @@ namespace AIKITDLL {    // 静态成员初始化
 	int VoiceCoordinator::StartCommandRecognition() {
 		LogInfo("协调器启动命令词识别");
 
+		// 初始化ESR模块
+		//int esrInitRet = CnenEsrInit();
+		//if (esrInitRet != 0) {
+		//	LogError("CnenEsrInit 初始化失败: %d", esrInitRet);
+		//	return -1;
+		//}
+
 		// 创建参数构建器
 		AIKIT::AIKIT_ParamBuilder* paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
 		if (!paramBuilder) {
@@ -387,15 +404,16 @@ namespace AIKITDLL {    // 静态成员初始化
 		paramBuilder->param("vadEndGap", 75);
 		paramBuilder->param("vadOn", true);
 
-		// 指定数据集
 		int index[] = { 0 };
 		int ret = AIKIT::AIKIT_SpecifyDataSet(ESR_ABILITY, "FSA", index, sizeof(index) / sizeof(int));
 		if (ret != 0) {
-			LogError("指定ESR数据集失败: %d", ret);
+			AIKITDLL::LogError("AIKIT_SpecifyDataSet FSA 失败，错误码: %d", ret);
 			delete paramBuilder;
 			return ret;
 		}
+		AIKITDLL::LogInfo("AIKIT_SpecifyDataSet FSA 成功");
 
+		LogInfo("正在启用ESR能力");
 		// 启动ESR会话 - 重用统一句柄
 		ret = AIKIT::AIKIT_Start(ESR_ABILITY, AIKIT::AIKIT_Builder::build(paramBuilder), nullptr, &unified_handle_);
 		delete paramBuilder;
@@ -423,7 +441,9 @@ namespace AIKITDLL {    // 静态成员初始化
 			AIKIT::AIKIT_End(unified_handle_);
 			unified_handle_ = nullptr;
 			return -1;
-		}        // 重置ESR状态
+		}
+
+		// 重置ESR状态
 		AIKITDLL::esrResultFlag = 0;
 		std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
 		AIKITDLL::lastEsrKeywordResult.clear();
@@ -463,23 +483,23 @@ namespace AIKITDLL {    // 静态成员初始化
 		return 0;
 	}    bool VoiceCoordinator::CheckCommandStatus() {
 		std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
-		
+
 		// 检查是否成功识别到命令词
 		if (AIKITDLL::esrStatus.load() == AIKITDLL::ESR_STATUS_SUCCESS_INTERNAL && !AIKITDLL::lastEsrKeywordResult.empty()) {
 			return true;
 		}
-		
+
 		// 检查是否失败或超时
-		if (AIKITDLL::esrStatus.load() == AIKITDLL::ESR_STATUS_FAILED_INTERNAL || 
+		if (AIKITDLL::esrStatus.load() == AIKITDLL::ESR_STATUS_FAILED_INTERNAL ||
 			AIKITDLL::esrStatus.load() == AIKITDLL::ESR_STATUS_NO_MATCH_INTERNAL) {
 			LogInfo("ESR识别失败或超时，状态: %d", AIKITDLL::esrStatus.load());
 			TransitionToState(VoiceState::Timeout);
 			return false;
 		}
-		
+
 		return false;
 	}
-	
+
 	void VoiceCoordinator::CleanupResources() {
 		LogInfo("清理协调器资源");
 
@@ -502,7 +522,7 @@ namespace AIKITDLL {    // 静态成员初始化
 		AIKITDLL::esrResultFlag = 0;
 		ResetWakeupStatus();
 	}
-	
+
 	void VoiceCoordinator::CleanupCurrentSession() {
 		LogInfo("清理当前会话资源（保持SDK初始化状态）");
 
@@ -553,7 +573,7 @@ namespace AIKITDLL {    // 静态成员初始化
 		}
 	}    // 手动触发函数（用于测试）
 	void VoiceCoordinator::TriggerWakeupDetected() {
-		LogInfo("手动触发唤醒检测");        
+		LogInfo("手动触发唤醒检测");
 		AIKITDLL::wakeupFlag = 1;
 		::wakeupFlag = 1; // 也设置全局变量
 		if (state_manager_) {

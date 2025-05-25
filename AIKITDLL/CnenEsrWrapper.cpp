@@ -27,8 +27,6 @@ int CnenEsrInit()
     // 确保在开始任何操作前，句柄是空的
     if (AIKITDLL::g_esrHandle != nullptr) {
         AIKITDLL::LogWarning("CnenEsrInit: 发现残留句柄，将尝试释放。");
-        // 这里不应该直接调用 AIKIT_End，因为引擎可能还未初始化或数据未加载
-        // delete AIKITDLL::g_esrHandle; // 如果 AIKIT_Start 分配了内存且需要调用者 delete
         AIKITDLL::g_esrHandle = nullptr;
     }
 

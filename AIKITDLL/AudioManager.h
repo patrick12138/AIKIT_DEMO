@@ -93,11 +93,16 @@ namespace AIKITDLL {
 		bool is_recording_; // 物理录音是否正在进行
 		int device_id_;
 		WAVEFORMATEX wave_format_; // 音频格式
-		const char* active_audio_key_; // 当前消费者的音频key（"wav"或"pcm"）
+		const char* active_audio_key_; // 当前消费者的音频key（"wav"或"pcm"）		
 		std::string lastEsrResult_; // 保存ESR识别结果，供C#查询
 		std::string lastPgsResult_; // 保存实时PGS结果，供C#查询
 
 		std::chrono::steady_clock::time_point esr_start_time_; // ESR开始时间
+		
+		// 音频缓冲区清理后的静音期控制
+		std::chrono::steady_clock::time_point buffer_clear_time_; // 缓冲区清理时间
+		static const int AUDIO_IGNORE_DURATION_MS = 2000; // 缓冲区清理后忽略音频数据的时间（毫秒）
+		bool should_ignore_audio_; // 是否应该忽略当前音频数据
 
 		static AudioManager* instance_;
 	};
