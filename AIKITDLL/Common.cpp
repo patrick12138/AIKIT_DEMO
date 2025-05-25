@@ -22,7 +22,7 @@
 // 全局变量声明
 int wakeupFlag = 0; // 唤醒状态标志，0表示未唤醒，1表示已唤醒
 namespace AIKITDLL {
-	bool isInitialized = true;
+	bool isInitialized = false; // SDK初始化状态，初始为false
 	std::string lastResult;
 	std::atomic_bool wakeupDetected(false);  // 是否检测到唤醒词
 	std::mutex logMutex; // 用于日志写入的互斥锁
@@ -36,7 +36,6 @@ namespace AIKITDLL {
 		strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_now);
 		return std::string(buffer);
 	}
-
 	void AIKITDLL::OnOutput(AIKIT_HANDLE* handle, const AIKIT_OutputData* output) {
 		if (!handle || !output || !output->node) {
 			LogError("OnOutput received invalid parameters: handle=%p", static_cast<void*>(handle));
@@ -49,9 +48,26 @@ namespace AIKITDLL {
 			LogInfo("OnOutput key: %s", output->node->key);
 		}
 
+		// 声明在函数开始处，以便整个函数都能使用
+		std::string resultText = "";
+		std::string displayText = "";
+
 		if (output->node->value) {
-			std::string resultText(static_cast<char*>(output->node->value), output->node->len);
-			LogInfo("OnOutput value (len %lu, status %d): %s", output->node->len, output->node->status, resultText.c_str());
+			resultText = std::string(static_cast<char*>(output->node->value), output->node->len);
+			
+			// 对于中文结果，尝试UTF-8转换以防止乱码
+			displayText = resultText;
+			try {
+				// 使用EsrHelper中的UTF8转换函数
+				displayText = UTF8ToLocalString(resultText.c_str());
+				if (displayText.empty()) {
+					displayText = resultText; // 转换失败时保持原文
+				}
+			} catch (...) {
+				displayText = resultText;
+			}
+			
+			LogInfo("OnOutput value (len %lu, status %d): %s", output->node->len, output->node->status, displayText.c_str());
 
 			// --- IVW (唤醒) 处理 ---
 			if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
@@ -76,19 +92,29 @@ namespace AIKITDLL {
 			}
 			// --- ESR (命令词识别) 处理 ---
 			else if (!strcmp(handle->abilityID, AIKITDLL::ESR_ABILITY_ID)) {
-				LogInfo("命令词引擎原始输出 (status %d): %s", output->node->status, resultText.c_str());
-
-				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce) {
+				LogInfo("命令词引擎原始输出 (status %d): %s", output->node->status, resultText.c_str());				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce) {
 					LogInfo("命令词最终/单次结果包 (status %d)", output->node->status);
 					// 假设 EsrHelper::ProcessRecognitionResult 会处理 resultText 并设置 g_hasNewReadableResult
 					// EsrHelper::ProcessRecognitionResult(resultText.c_str()); // 如果需要调用
-
 					if (g_hasNewReadableResult) {
 						AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_SUCCESS_INTERNAL;
-						AIKITDLL::lastEsrKeywordResult = std::string(g_readableResultBuffer);
+						// 正确处理UTF-8编码的命令词结果
+						std::string rawResult = std::string(g_readableResultBuffer);
+						std::string processedResult = rawResult;
+						try {
+							// 尝试UTF-8转换以确保中文正确显示
+							processedResult = UTF8ToLocalString(rawResult.c_str());
+							if (processedResult.empty()) {
+								processedResult = rawResult; // 转换失败时保持原文
+							}
+						} catch (...) {
+							processedResult = rawResult;
+						}
+						
+						AIKITDLL::lastEsrKeywordResult = processedResult;
 						AIKITDLL::lastEsrErrorInfo = "";
-						AIKITDLL::lastResult = "命令词识别: " + AIKITDLL::lastEsrKeywordResult;
-						LogInfo("命令词识别成功 (EsrHelper): %s", AIKITDLL::lastEsrKeywordResult.c_str());
+						AIKITDLL::lastResult = "命令词识别: " + processedResult;
+						LogInfo("命令词识别成功 (EsrHelper): %s", processedResult.c_str());
 						g_hasNewReadableResult = false; // 读取后重置标志
 					} else {
 						AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_NO_MATCH_INTERNAL;

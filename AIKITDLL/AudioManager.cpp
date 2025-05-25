@@ -3,6 +3,7 @@
 #include "aikit_biz_builder.h" // For AIKIT_Builder, AiAudio
 #include "Common.h"            // For AIKITDLL logging
 #include "CnenEsrWrapper.h"    // For ESR variables access
+#include "EsrHelper.h"         // For UTF8ToLocalString function
 #include <string>
 #include <chrono> // For timeout implementation
 
@@ -306,31 +307,41 @@ namespace AIKITDLL {
 		while (node != nullptr) {
 			if (node->key) {
 				resultType = std::string(node->key);
-				LogInfo("AudioManager: 结果类型 = %s", node->key);
-
-				if (node->value && node->len > 0) {
+				LogInfo("AudioManager: 结果类型 = %s", node->key);				if (node->value && node->len > 0) {
 					std::string valueStr((char*)node->value, node->len);
-					LogInfo("AudioManager: 识别结果 = %s", valueStr.c_str());
+					
+					// 对识别结果进行UTF-8编码转换以防止中文乱码
+					std::string processedValueStr = valueStr;
+					try {
+						// 使用EsrHelper中的UTF8转换函数
+						processedValueStr = UTF8ToLocalString(valueStr.c_str());
+						if (processedValueStr.empty()) {
+							processedValueStr = valueStr; // 转换失败时保持原文
+						}
+					} catch (...) {
+						processedValueStr = valueStr;
+					}
+					
+					LogInfo("AudioManager: 识别结果 = %s", processedValueStr.c_str());
 
 					// 根据结果类型进行不同处理
 					if (resultType == "plain") {
 						// plain格式：最终完整识别结果
-						recognizedText = valueStr;
+						recognizedText = processedValueStr;  // 使用转换后的结果
 						foundCommand = true;
-						LogInfo("AudioManager: 检测到完整命令词: %s", valueStr.c_str());
-					}
-					else if (resultType == "readable") {
+						LogInfo("AudioManager: 检测到完整命令词: %s", processedValueStr.c_str());
+					}					else if (resultType == "readable") {
 						// readable格式：JSON格式结果，包含置信度等详细信息
-						ProcessReadableResult(valueStr);
+						ProcessReadableResult(processedValueStr);  // 使用转换后的结果
 					}
 					else if (resultType == "vad") {
 						// VAD结果：语音端点检测
-						ProcessVadResult(valueStr);
+						ProcessVadResult(processedValueStr);  // 使用转换后的结果
 					}
 					else if (resultType == "pgs") {
 						// 渐进式结果：实时刷屏显示
-						lastPgsResult_ = valueStr;  // 保存最新的PGS结果
-						LogInfo("AudioManager: 渐进式识别: %s", valueStr.c_str());
+						lastPgsResult_ = processedValueStr;  // 保存转换后的PGS结果
+						LogInfo("AudioManager: 渐进式识别: %s", processedValueStr.c_str());
 					}
 				}
 			}
@@ -363,13 +374,12 @@ namespace AIKITDLL {
 			LogInfo("AudioManager: 检测到语音结束，设置状态为 AIKIT_DataEnd");
 		}
 	}
-
 	// 新增方法：命令词检测回调
 	void AudioManager::OnCommandDetected(const std::string& command) {
 		LogInfo("AudioManager: 检测到命令词: %s", command.c_str());
 
-		// 保存识别结果供C#查询
-		lastEsrResult_ = command;
+		// 保存识别结果供C#查询，确保编码正确
+		lastEsrResult_ = command;  // command已经在ProcessRecognitionResult中进行了UTF-8转换
 
 		// 这里可以添加命令词处理逻辑
 		// 例如：触发相应的操作、通知上层应用等

@@ -3,6 +3,7 @@
 #include "aikit_biz_api.h"
 #include "aikit_biz_config.h"
 #include "Common.h"
+#include <string>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,9 +35,11 @@ extern "C" {
 	// 声明临界区对象和初始化标志
 	extern AIKITDLL_API CRITICAL_SECTION g_resultLock;
 	extern AIKITDLL_API bool g_resultLockInitialized;
-
 	// 初始化结果锁 (应在SDK初始化时调用)
 	AIKITDLL_API void InitResultLock();
+
+	// UTF-8字符串转换函数
+	AIKITDLL_API std::string UTF8ToLocalString(const char* utf8Str);
 
 	// 获取plain格式的识别结果
 	// 这个函数被CnenEsrWrapper.cpp中的旧esr_microphone循环使用，

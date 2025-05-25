@@ -15,6 +15,12 @@
 namespace AIKITDLL {
 	int InitializeAIKitSDK()
 	{
+		// 检查是否已经初始化，避免重复初始化
+		if (isInitialized) {
+			LogInfo("AIKIT SDK 已经初始化，跳过重复初始化");
+			return 0;
+		}
+
 		// 设置需要使用的能力ID (唤醒和合成能力)
 		const char* ability_id = "e867a88f2;e75f07b62";
 
@@ -84,10 +90,10 @@ namespace AIKITDLL {
 			LogInfo("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用成功。");
 		}
 		else {
-			LogError("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用失败!");
-		}
+			LogError("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用失败!");		}
 
 		AIKITDLL::LogInfo("全局初始化完成");
+		isInitialized = true; // 标记SDK已初始化
 		return 0;
 	}
 

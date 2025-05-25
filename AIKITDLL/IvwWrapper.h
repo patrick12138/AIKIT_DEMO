@@ -22,7 +22,7 @@ extern "C" {
 	typedef void (*WakeupEventCallback)(const char* keyword, int confidence);
 
 	// 语音唤醒控制函数
-	AIKITDLL_API int StartWakeupDetection(int threshold);
+	
 	AIKITDLL_API int StopWakeupDetection();
 
 	// 持续唤醒控制函数

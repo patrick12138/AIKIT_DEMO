@@ -84,23 +84,21 @@ namespace AikitWpfDemo
         {
             LogMessage("开始语音交互循环");
             await TransitionToState(VoiceState.Idle);
-        }
-          // 停止语音交互循环
+        }        // 停止语音交互循环
         public async Task StopInteractionLoop()
         {
             LogMessage("停止语音交互循环");
             _timeoutTimer?.Stop();
             _statusCheckTimer?.Stop();
             
-            // 停止所有识别
+            // 停止统一语音交互
             try
             {
-                NativeMethods.StopWakeupDetection();
-                NativeMethods.StopEsrMicrophoneDetection();
+                NativeMethods.StopUnifiedVoiceInteraction();
             }
             catch (Exception ex)
             {
-                LogMessage($"停止识别时出错: {ex.Message}");
+                LogMessage($"停止统一语音交互时出错: {ex.Message}");
             }
             
             await TransitionToState(VoiceState.Idle);
@@ -144,12 +142,10 @@ namespace AikitWpfDemo
                     await HandleTimeoutOrError();
                     break;
             }
-        }
-        
-        // 处理待机状态（监听唤醒词）
+        }        // 处理待机状态（监听唤醒词）
         private async Task HandleIdleState()
         {
-            LogMessage("进入待机状态，开始监听唤醒词...");
+            LogMessage("进入待机状态，等待唤醒词检测...");
             
             // 隐藏弹窗
             _popupManager.HidePopup();
@@ -159,44 +155,33 @@ namespace AikitWpfDemo
             
             try
             {
-                // 启动唤醒词检测
-                int ret = NativeMethods.StartWakeupDetection(50);
-                if (ret != 0)
+                // 检查统一语音交互是否已经在运行
+                int isRunning = NativeMethods.IsUnifiedVoiceInteractionRunning();
+                if (isRunning != 1)
                 {
-                    LogMessage($"启动唤醒词检测失败: {ret}");
-                    await Task.Delay(2000); // 等待2秒后重试
-                    await TransitionToState(VoiceState.Idle);
-                    return;                }
+                    LogMessage("统一语音交互未运行，请先点击'开始语音交互'按钮启动");
+                    return;
+                }
+                
+                LogMessage("统一语音交互已在运行，开始状态监控");
                 
                 // 开始状态检查
                 _statusCheckTimer?.Start();
                 
-                // 设置超时（可选，如果不需要可以不设置）
-                // _timeoutTimer.Interval = TimeSpan.FromSeconds(WAKEUP_TIMEOUT);
-                // _timeoutTimer.Start();
-                
             }
             catch (Exception ex)
             {
-                LogMessage($"启动唤醒词检测异常: {ex.Message}");
+                LogMessage($"处理待机状态异常: {ex.Message}");
                 await TransitionToState(VoiceState.Error);
             }
         }
-        
-        // 处理检测到唤醒词
+          // 处理检测到唤醒词
         private async Task HandleWakeupDetected()
         {
-            LogMessage("检测到唤醒词！");
+            LogMessage("检测到唤醒词！统一语音交互系统已自动处理");
             
-            // 停止唤醒词检测
-            try
-            {
-                NativeMethods.StopWakeupDetection();
-            }
-            catch (Exception ex)
-            {
-                LogMessage($"停止唤醒词检测失败: {ex.Message}");
-            }
+            // 注意：使用统一语音交互系统时，系统会自动处理状态转换
+            // 不需要手动停止唤醒检测，系统会自动进入命令词识别状态
             
             await TransitionToState(VoiceState.PlayingPrompt);
         }
@@ -300,20 +285,19 @@ namespace AikitWpfDemo
                 await TransitionToState(VoiceState.Error);
             }
         }
-        
-        // 处理超时或错误
+          // 处理超时或错误
         private async Task HandleTimeoutOrError()
         {
             LogMessage("处理超时或错误，返回待机状态");
             
             try
             {
-                // 停止所有识别
-                NativeMethods.StopWakeupDetection();
-                NativeMethods.StopEsrMicrophoneDetection();
+                // 停止统一语音交互
+                NativeMethods.StopUnifiedVoiceInteraction();
             }
             catch { }
-              // 显示超时信息
+            
+            // 显示超时信息
             if (_currentState == VoiceState.Timeout)
             {
                 await _popupManager.ShowPopupWithAutoCloseAsync("监听超时", 1500);

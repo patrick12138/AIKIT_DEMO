@@ -301,16 +301,8 @@ AIKITDLL_API int StartWakeupDetection(int threshold) {
 		return -1; // Indicate error: already running
 	}
 
-	// 初始化SDK (This function should also initialize AudioManager)
-	int ret = AIKITDLL::InitializeAIKitSDK(); // Ensure SDK and AudioManager are initialized
-	if (ret != 0) {
-		AIKITDLL::LogError("AIKit SDK 初始化失败，错误码: %d", ret);
-		return ret;
-	}
-	AIKITDLL::LogInfo("AIKit SDK 初始化成功。");
-
 	// 启动IVW能力会话
-	ret = AIKITDLL::ivw_start_session(IVW_ABILITY, &g_currentHandle, threshold);
+	int ret = AIKITDLL::ivw_start_session(IVW_ABILITY, &g_currentHandle, threshold);
 	if (ret != 0 || g_currentHandle == nullptr) {
 		AIKITDLL::LogError("ivw_start_session 失败，错误码: %d, 句柄: %p", ret, g_currentHandle);
 		// Ensure g_currentHandle is null if session start failed but handle was somehow assigned

@@ -53,51 +53,52 @@ namespace AIKITDLL {    // 静态成员初始化
 		}
 		CleanupResources();
 		LogInfo("VoiceCoordinator 已销毁");
-	}
+	}    int VoiceCoordinator::StartVoiceInteraction(int wakeupThreshold, int esrTimeout) {
+        std::lock_guard<std::mutex> lock(state_mutex_);
 
-	int VoiceCoordinator::StartVoiceInteraction(int wakeupThreshold, int esrTimeout) {
-		std::lock_guard<std::mutex> lock(state_mutex_);
+        // 检查是否已经在运行
+        if (is_running_.load()) {
+            LogWarning("语音交互循环已在运行，跳过重复启动");
+            return 0; // 返回成功，避免上层认为是错误
+        }
 
-		if (is_running_.load()) {
-			LogWarning("语音交互循环已在运行");
-			return -1;
-		}
+        // SDK初始化
+        int sdkInitRet = InitializeAIKitSDK();
+        if (sdkInitRet != 0) {
+            LogError("AIKIT SDK 初始化失败，错误码: %d", sdkInitRet);
+            return -1;
+        }
 
-		LogInfo("启动统一语音交互循环，唤醒阈值: %d, ESR超时: %d秒", wakeupThreshold, esrTimeout);
+        LogInfo("启动统一语音交互循环，唤醒阈值: %d, ESR超时: %d秒", wakeupThreshold, esrTimeout);
 
-		// 保存参数
-		wakeup_threshold_ = wakeupThreshold;
-		esr_timeout_ = esrTimeout;
+        // 保存参数
+        wakeup_threshold_ = wakeupThreshold;
+        esr_timeout_ = esrTimeout;
 
-		// 重置状态
-		should_stop_ = false;
-		current_state_ = VoiceState::Idle;
-		last_error_.clear();
-		loop_iteration_ = 0;
+        // 重置状态
+        should_stop_ = false;
+        current_state_ = VoiceState::Idle;
+        last_error_.clear();
+        loop_iteration_ = 0;
+        
+        // 清理之前的资源
+        CleanupResources();
 
-		// 清理之前的资源
-		CleanupResources();
+        LogInfo("SDK已准备就绪，开始语音交互循环");
 
-		// 初始化SDK
-		int ret = InitializeAIKitSDK();
-		if (ret != 0) {
-			LogError("初始化AIKit SDK失败: %d", ret);
-			return ret;
-		}
-
-		// 启动循环线程
-		try {
-			is_running_ = true;
-			loop_thread_ = std::thread(&VoiceCoordinator::VoiceInteractionLoop, this);
-			LogInfo("语音交互循环线程已启动");
-			return 0;
-		}
-		catch (const std::exception& e) {
-			LogError("启动语音交互循环线程失败: %s", e.what());
-			is_running_ = false;
-			return -1;
-		}
-	}
+        // 启动循环线程
+        try {
+            is_running_ = true;
+            loop_thread_ = std::thread(&VoiceCoordinator::VoiceInteractionLoop, this);
+            LogInfo("语音交互循环线程已启动");
+            return 0;
+        }
+        catch (const std::exception& e) {
+            LogError("启动语音交互循环线程失败: %s", e.what());
+            is_running_ = false;
+            return -1;
+        }
+    }
 
 	int VoiceCoordinator::StopVoiceInteraction() {
 		LogInfo("停止语音交互循环");
@@ -468,6 +469,7 @@ namespace AIKITDLL {    // 静态成员初始化
 		
 		return false;
 	}
+	
 	void VoiceCoordinator::CleanupResources() {
 		LogInfo("清理协调器资源");
 
@@ -490,6 +492,7 @@ namespace AIKITDLL {    // 静态成员初始化
 		AIKITDLL::esrResultFlag = 0;
 		ResetWakeupStatus();
 	}
+	
 	void VoiceCoordinator::CleanupCurrentSession() {
 		LogInfo("清理当前会话资源（保持SDK初始化状态）");
 
