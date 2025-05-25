@@ -128,6 +128,14 @@ extern "C" __declspec(dllexport) int StartEsrMicrophoneDetection()
         //StopEsrMicrophoneDetection(); 
     }
     
+    // 初始化SDK (This function should also initialize AudioManager)
+    int ret = AIKITDLL::InitializeAIKitSDK(); // Ensure SDK and AudioManager are initialized
+    if (ret != 0) {
+        AIKITDLL::LogError("AIKit SDK 初始化失败，错误码: %d", ret);
+        return ret;
+    }
+    AIKITDLL::LogInfo("AIKit SDK 初始化成功。");
+
     AIKIT::AIKIT_ParamBuilder* paramBuilder = AIKIT::AIKIT_ParamBuilder::create();
     if (!paramBuilder) {
         AIKITDLL::LogError("创建ESR paramBuilder失败");
@@ -139,7 +147,7 @@ extern "C" __declspec(dllexport) int StartEsrMicrophoneDetection()
     paramBuilder->param("vadOn", true);     
     
     int index[] = { 0 };
-    int ret = AIKIT::AIKIT_SpecifyDataSet(ESR_ABILITY, "FSA", index, sizeof(index) / sizeof(int));
+    ret = AIKIT::AIKIT_SpecifyDataSet(ESR_ABILITY, "FSA", index, sizeof(index) / sizeof(int));
     if (ret != 0) {
         AIKITDLL::LogError("AIKIT_SpecifyDataSet FSA 失败，错误码: %d", ret);
         delete paramBuilder;
@@ -174,7 +182,13 @@ extern "C" __declspec(dllexport) int StartEsrMicrophoneDetection()
     AIKITDLL::LogInfo("ESR DataBuilder创建/清空完毕 (%p)", AIKITDLL::g_esrDataBuilder);
 
     // Assuming ActivateConsumer expects AIKIT_HANDLE* (pointer to the struct)
-    bool activated = AIKITDLL::AudioManager::GetInstance().ActivateConsumer(AIKITDLL::AudioConsumer::ESR, AIKITDLL::g_esrHandle, AIKITDLL::g_esrDataBuilder);
+      // 激活AudioManager的ESR消费者，并指定audioKey为"pcm"
+    bool activated = AIKITDLL::AudioManager::GetInstance().ActivateConsumer(
+        AIKITDLL::AudioConsumer::ESR,
+        AIKITDLL::g_esrHandle,
+        AIKITDLL::g_esrDataBuilder,
+        "audio" // 指定ESR使用 "pcm" 作为 audioKey
+    );
     if (!activated) {
         AIKITDLL::LogError("激活AudioManager ESR消费者失败");
         AIKIT::AIKIT_End(AIKITDLL::g_esrHandle); 

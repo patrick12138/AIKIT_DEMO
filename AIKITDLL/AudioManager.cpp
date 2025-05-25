@@ -3,6 +3,7 @@
 #include "aikit_biz_builder.h" // For AIKIT_Builder, AiAudio
 #include "Common.h"            // For AIKITDLL logging
 #include <string>
+#include <chrono> // For timeout implementation
 
 namespace AIKITDLL {
 
@@ -226,6 +227,9 @@ namespace AIKITDLL {
 			return;
 		}
 
+		// 检查ESR超时
+		CheckTimeout();
+
 		if (len == 0) {
 			// 当接收到空数据时，可能意味着音频流结束
 			if (audio_status_ != AIKIT_DataEnd) {
@@ -290,11 +294,11 @@ namespace AIKITDLL {
 			if (node->key) {
 				resultType = std::string(node->key);
 				LogInfo("AudioManager: 结果类型 = %s", node->key);
-				
+
 				if (node->value && node->len > 0) {
 					std::string valueStr((char*)node->value, node->len);
 					LogInfo("AudioManager: 识别结果 = %s", valueStr.c_str());
-					
+
 					// 根据结果类型进行不同处理
 					if (resultType == "plain") {
 						// plain格式：最终完整识别结果
@@ -312,6 +316,7 @@ namespace AIKITDLL {
 					}
 					else if (resultType == "pgs") {
 						// 渐进式结果：实时刷屏显示
+						lastPgsResult_ = valueStr;  // 保存最新的PGS结果
 						LogInfo("AudioManager: 渐进式识别: %s", valueStr.c_str());
 					}
 				}
@@ -330,7 +335,7 @@ namespace AIKITDLL {
 		// 这里可以解析JSON获取更详细的识别信息
 		// 包括置信度(sc)、命中的槽名(slot)、拼音(pinyin)等
 		LogInfo("AudioManager: JSON结果解析: %s", jsonResult.c_str());
-		
+
 		// TODO: 可以添加JSON解析逻辑，提取置信度等关键信息
 		// 例如使用 nlohmann/json 或其他JSON库
 	}
@@ -338,10 +343,10 @@ namespace AIKITDLL {
 	// 新增方法：处理VAD结果
 	void AudioManager::ProcessVadResult(const std::string& vadResult) {
 		LogInfo("AudioManager: VAD检测结果: %s", vadResult.c_str());
-		
+
 		// VAD结果可以帮助判断语音的开始和结束
 		// 当检测到语音结束时，可以设置audio_status_ = AIKIT_DataEnd
-		
+
 		// TODO: 解析VAD JSON结果，检查status字段
 		// 如果status为"SpeechAutoFinish"，表示语音自动结束
 		if (vadResult.find("SpeechAutoFinish") != std::string::npos) {
@@ -353,13 +358,43 @@ namespace AIKITDLL {
 	// 新增方法：命令词检测回调
 	void AudioManager::OnCommandDetected(const std::string& command) {
 		LogInfo("AudioManager: 检测到命令词: %s", command.c_str());
-		
+
 		// 保存识别结果供C#查询
 		lastEsrResult_ = command;
-		
+
 		// 这里可以添加命令词处理逻辑
 		// 例如：触发相应的操作、通知上层应用等
-		
+
 		// TODO: 根据具体业务需求实现命令响应逻辑
 	}
+
+	// 实现超时检查
+	void AudioManager::CheckTimeout() {
+		if (current_consumer_ == AudioConsumer::ESR) {
+			auto now = std::chrono::steady_clock::now();
+			auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - esr_start_time_).count();
+
+			if (elapsed >= ESR_TIMEOUT_SECONDS) {
+				LogInfo("AudioManager: ESR超时(%d秒)，自动停止", ESR_TIMEOUT_SECONDS);
+				UnInitSDK();
+				ForceStopRecording();
+			}
+		}
+	}
+
+	// 实现SDK逆初始化
+	void AudioManager::UnInitSDK() {
+		if (AIKITDLL::isInitialized) {
+			int ret = AIKIT::AIKIT_UnInit();
+			AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_NONE_INTERNAL;
+			if (ret == 0) {
+				AIKITDLL::isInitialized = false;
+				LogInfo("SDK逆初始化成功");
+			}
+			else {
+				LogError("SDK逆初始化失败，错误码: %d", ret);
+			}
+		}
+	}
+
 } // namespace AIKITDLL

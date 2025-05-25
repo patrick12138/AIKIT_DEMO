@@ -8,6 +8,7 @@
 #include "aikit_constant.h" // For AIKIT_DataStatus
 #include "Common.h"   // For AIKITDLL logging (LogDebug, LogInfo etc.)
 #include <string> // Added for std::string
+#include <chrono> // Added for std::chrono
 
 // Forward declaration if AIKIT_HANDLE is not fully defined by aikit_biz_api.h alone
 // struct AIKIT_HANDLE_TAG;
@@ -54,6 +55,14 @@ namespace AIKITDLL {
 
 		bool IsRecording() const;
 
+		static const int ESR_TIMEOUT_SECONDS = 10; // 命令词识别超时时间（秒）
+
+		// 超时检查和处理
+		void CheckTimeout();
+
+		// SDK逆初始化
+		static void UnInitSDK();
+
 	public:
 		AudioManager();
 		~AudioManager();
@@ -87,6 +96,9 @@ namespace AIKITDLL {
 		WAVEFORMATEX wave_format_; // 音频格式
 		const char* active_audio_key_; // 当前消费者的音频key（"wav"或"pcm"）
 		std::string lastEsrResult_; // 保存ESR识别结果，供C#查询
+		std::string lastPgsResult_; // 保存实时PGS结果，供C#查询
+
+		std::chrono::steady_clock::time_point esr_start_time_; // ESR开始时间
 
 		static AudioManager* instance_;
 	};

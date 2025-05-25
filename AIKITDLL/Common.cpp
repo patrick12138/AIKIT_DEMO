@@ -380,3 +380,27 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
+// 获取最后的PGS识别结果
+#ifdef __cplusplus
+extern "C" {
+#endif
+	__declspec(dllexport) const char* GetLastPgsResult() {
+		// 直接返回AudioManager单例中的lastPgsResult_字符串指针
+		// 注意：C#端调用后应尽快复制字符串内容，避免被后续识别覆盖
+		return AIKITDLL::AudioManager::GetInstance().lastPgsResult_.c_str();
+	}
+#ifdef __cplusplus
+}
+#endif
+
+// 反初始化SDK
+#ifdef __cplusplus
+extern "C" {
+#endif
+    AIKITDLL_API void UnInitSDK() {
+        AIKITDLL::AudioManager::GetInstance().UnInitSDK();
+    }
+#ifdef __cplusplus
+}
+#endif

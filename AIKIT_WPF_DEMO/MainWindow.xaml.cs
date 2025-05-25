@@ -1,16 +1,5 @@
-﻿using System;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
+﻿using System.Windows;
 using System.Windows.Threading;
-using WinForms = System.Windows.Forms;
-using Microsoft.Win32;
-using System.IO;
-using System.Runtime.InteropServices; // 添加对Marshal类的引用
-using AikitWpfDemo; // 引入辅助类
-using System.Diagnostics; // For Stopwatch
 
 namespace AikitWpfDemo
 {
@@ -23,8 +12,10 @@ namespace AikitWpfDemo
         private ResultMonitor _resultMonitor; // 替换原DispatcherTimer
         private bool _autoLoopRunning = false;
         private bool _recognitionCompleted = false;
-        private string _lastHandledResult = string.Empty;
-        private HashSet<string> _validCommands;
+        private string _lastHandledResult = string.Empty;        private HashSet<string> _validCommands;
+        
+        // 新增: 语音交互管理器
+        private VoiceInteractionManager? _voiceManager;
 
         public MainWindow()
         {
@@ -35,16 +26,18 @@ namespace AikitWpfDemo
             // 初始化弹窗管理
             _popupManager = new PopupManager();
             // 初始化命令词集合
-            _validCommands = CommandHelper.LoadValidCommands();
-            // 初始化识别结果监控
+            _validCommands = CommandHelper.LoadValidCommands();            // 初始化识别结果监控
             _resultMonitor = new ResultMonitor(msg => LogHelper.LogMessage(msg));
+            
+            // 初始化语音交互管理器
+            _voiceManager = new VoiceInteractionManager(_popupManager);
+            _voiceManager.OnLogMessage += LogHelper.LogMessage;
+            _voiceManager.OnCommandDetected += OnCommandDetected;
             // 启动自动语音循环流程（Loaded事件）
             //Loaded += async (s, e) => await StartAutoVoiceLoop();
 
             //Loaded += async (s, e) => await StartVoiceInteractionLoop();
-        }
-
-        // 窗口关闭事件
+        }        // 窗口关闭事件
         protected override void OnClosed(EventArgs e)
         {
             try
@@ -52,13 +45,65 @@ namespace AikitWpfDemo
                 _cts?.Cancel();
                 _resultMonitor?.Stop();
                 _popupManager?.HidePopup();
+                _voiceManager?.Dispose();
             }
             catch { }
             base.OnClosed(e);
         }
 
-        // 唤醒测试按钮
-        private DispatcherTimer _wakeupMonitorTimer; // 新增定时器字段
+        // 命令检测事件处理器
+        private void OnCommandDetected(string command)
+        {
+            LogHelper.LogMessage($"检测到命令: {command}");
+            // 这里可以添加具体的命令处理逻辑
+            switch (command.ToLower())
+            {
+                case "打开设置":
+                    LogHelper.LogMessage("执行打开设置命令");
+                    break;
+                case "关闭程序":
+                    LogHelper.LogMessage("执行关闭程序命令");
+                    Application.Current.Shutdown();
+                    break;
+                default:
+                    LogHelper.LogMessage($"未知命令: {command}");
+                    break;
+            }
+        }
+
+        // 开始语音交互循环按钮
+        private async void BtnStartVoiceLoop_Click(object sender, RoutedEventArgs e)
+        {
+            if (_voiceManager == null) return;
+            
+            try
+            {
+                LogHelper.LogMessage("开始完整语音交互循环...");
+                await _voiceManager.StartInteractionLoop();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.LogMessage($"启动语音交互循环失败: {ex.Message}");
+                MessageBox.Show($"启动语音交互循环失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // 停止语音交互循环按钮
+        private async void BtnStopVoiceLoop_Click(object sender, RoutedEventArgs e)
+        {
+            if (_voiceManager == null) return;
+            
+            try
+            {
+                LogHelper.LogMessage("停止语音交互循环...");
+                await _voiceManager.StopInteractionLoop();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.LogMessage($"停止语音交互循环失败: {ex.Message}");
+            }
+        }        // 唤醒测试按钮
+        private DispatcherTimer? _wakeupMonitorTimer; // 新增定时器字段
 
         private void BtnStartWakeup_Click(object sender, RoutedEventArgs e)
         {
@@ -109,14 +154,12 @@ namespace AikitWpfDemo
                 _resultMonitor?.Stop();
             }
         }
-        
-        // 命令词识别按钮
-        private async void BtnStartEsr_Click(object sender, RoutedEventArgs e)
+          // 命令词识别按钮
+        private void BtnStartEsr_Click(object sender, RoutedEventArgs e)
         {
             try
-            {
-                // 启动识别结果监控定时器
-                if (!_resultMonitor.IsEnabled)
+            {                // 启动识别结果监控定时器
+                if (_resultMonitor != null && !_resultMonitor.IsEnabled)
                 {
                     _resultMonitor.Start();
                     LogHelper.LogMessage("实时识别结果监控已启动 (全局)");
@@ -150,10 +193,8 @@ namespace AikitWpfDemo
                         {
                             string finalEsrResult = NativeMethods.GetEsrFinalDisplayResult();
                             LogHelper.LogMessage($"ESR结束 (失败/无匹配): {finalEsrResult} (状态: {currentEsrStatus})");
-                        }
-
-                        // 可以在这里获取PGS结果
-                        string pgsResult = NativeMethods.GetLatestPgsResult()?.Trim();
+                        }                        // 可以在这里获取PGS结果
+                        string pgsResult = NativeMethods.GetLatestPgsResult()?.Trim() ?? string.Empty;
                         if (!string.IsNullOrEmpty(pgsResult))
                         {
                             LogHelper.LogMessage($"[实时] PGS: {pgsResult}");
@@ -180,7 +221,7 @@ namespace AikitWpfDemo
             }
         }
 
-        // 自动语音循环流程
+        // 自动命令词循环流程
         private async Task StartAutoVoiceLoop()
         {
             if (_autoLoopRunning)
@@ -206,9 +247,8 @@ namespace AikitWpfDemo
                         _popupManager.HidePopup();
                         if (_autoLoopRunning) await Task.Delay(1000, _cts.Token);
                         continue;
-                    }
-                    _engineInitialized = true;
-                    if (!_resultMonitor.IsEnabled)
+                    }                    _engineInitialized = true;
+                    if (_resultMonitor != null && !_resultMonitor.IsEnabled)
                     {
                         _resultMonitor.Start();
                         LogHelper.LogMessage("识别结果监控定时器已启动。");
@@ -216,10 +256,9 @@ namespace AikitWpfDemo
                     var commandTimeout = TimeSpan.FromSeconds(2);
                     bool pgsMatchedThisTurn = false;
                     string currentTurnLastPgsText = string.Empty;
-                    var timeoutTime = DateTime.Now + commandTimeout;
-                    while (_autoLoopRunning && DateTime.Now < timeoutTime && !pgsMatchedThisTurn)
+                    var timeoutTime = DateTime.Now + commandTimeout;                    while (_autoLoopRunning && DateTime.Now < timeoutTime && !pgsMatchedThisTurn)
                     {
-                        string currentPgsRaw = NativeMethods.GetLatestPgsResult()?.Trim();
+                        string currentPgsRaw = NativeMethods.GetLatestPgsResult()?.Trim() ?? string.Empty;
                         if (!string.IsNullOrEmpty(currentPgsRaw) && currentPgsRaw != currentTurnLastPgsText)
                         {
                             currentTurnLastPgsText = currentPgsRaw;

@@ -27,8 +27,16 @@ namespace AikitWpfDemo
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern void CleanupSDK();
 
+        // 新增: SDK逆初始化接口
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int UnInitSDK();
+
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GetLastResult();        
+        
+        // 新增: 获取ESR最终结果字符串接口
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr GetLastEsrResultString();
         
         [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
         public static extern int StartEsrMicrophone();
@@ -188,6 +196,28 @@ namespace AikitWpfDemo
             return string.Empty;
         }
 
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr GetLastPgsResult();
+
+        // 辅助方法：获取最新的PGS结果字符串(实时渐进式识别结果)
+        public static string GetLastPgsResultString()
+        {
+            IntPtr ptr = GetLastPgsResult();
+            if (ptr != IntPtr.Zero)
+            {
+                int len = 0;
+                while (Marshal.ReadByte(ptr, len) != 0) len++;
+                if (len > 0)
+                {
+                    byte[] buffer = new byte[len];
+                    Marshal.Copy(ptr, buffer, 0, len);
+                    return System.Text.Encoding.UTF8.GetString(buffer);
+                }
+            }
+            return string.Empty;
+        }
+
+
         // public static string GetReadableResultString( )
         // {
         //     StringBuilder buffer = new StringBuilder(8192); // 假设默认缓冲区大小
@@ -201,6 +231,24 @@ namespace AikitWpfDemo
         //     return string.Empty;
         // }
 
+
+        // 新增: 获取ESR最终结果字符串辅助方法
+        public static string GetLastEsrResultStringResult()
+        {
+            IntPtr ptr = GetLastEsrResultString();
+            if (ptr != IntPtr.Zero)
+            {
+                int len = 0;
+                while (Marshal.ReadByte(ptr, len) != 0) len++;
+                if (len > 0)
+                {
+                    byte[] buffer = new byte[len];
+                    Marshal.Copy(ptr, buffer, 0, len);
+                    return System.Text.Encoding.UTF8.GetString(buffer);
+                }
+            }
+            return string.Empty;
+        }
 
         #endregion
     }
