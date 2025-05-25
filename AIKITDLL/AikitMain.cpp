@@ -1,3 +1,8 @@
+// 确保正确的DLL导出定义
+#ifndef AIKITDLL_EXPORTS
+#define AIKITDLL_EXPORTS
+#endif
+
 #include "pch.h"
 #include "Common.h"
 #include "EsrHelper.h"

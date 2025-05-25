@@ -3,17 +3,29 @@
 
 #include <atomic>
 #include <string>
+#include <mutex>
 
 namespace AIKITDLL {
 	enum VoiceState {
-		WAKEUP_LISTENING,  // 唤醒词监听状态
-		COMMAND_RECOGNITION  // 命令词识别状态
+		Idle,                // 待机状态（监听唤醒词）
+		WakeupDetected,      // 检测到唤醒词
+		PlayingPrompt,       // 播放提示音
+		ListeningCommand,    // 监听命令词
+		CommandCompleted,    // 命令完成
+		Timeout,             // 超时状态
+		Error,               // 错误状态
+		
+		// 保持兼容性的旧值
+		WAKEUP_LISTENING = Idle,
+		COMMAND_RECOGNITION = ListeningCommand
 	};
-
 	class VoiceStateManager {
 	public:
 		VoiceStateManager();
 		~VoiceStateManager();
+
+		// 获取单例实例
+		static VoiceStateManager* GetInstance();
 
 		// 获取当前状态
 		VoiceState getCurrentState() const;
@@ -35,11 +47,14 @@ namespace AIKITDLL {
 
 		// 设置命令词识别完成标志
 		void setCommandRecognitionCompleted(bool completed);
-
 	private:
 		std::atomic<VoiceState> currentState;
 		std::atomic<bool> wakeupDetected;
 		std::atomic<bool> commandRecognitionCompleted;
+		
+		// 单例模式
+		static VoiceStateManager* instance;
+		static std::mutex instance_mutex;
 	};
 }
 

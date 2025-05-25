@@ -52,6 +52,7 @@ extern "C" {
 #ifdef __cplusplus
 #include <string> // For std::string
 #include <atomic> // For std::atomic
+#include <mutex>  // For std::mutex
 
 namespace AIKITDLL {
     // ESR能力结果标识
@@ -64,13 +65,11 @@ namespace AIKITDLL {
         ESR_STATUS_SUCCESS_INTERNAL,
         ESR_STATUS_FAILED_INTERNAL,
         ESR_STATUS_NO_MATCH_INTERNAL // 新增一个未匹配状态
-    };
-
-    extern std::atomic<int> esrStatus;
+    };    extern std::atomic<int> esrStatus;
     extern std::string lastEsrKeywordResult;
     extern std::string lastEsrErrorInfo;
-    // extern std::atomic<int> esrResultFlag; // 如果Common.cpp或其他地方需要访问，也应声明
-    // extern std::mutex esrResultMutex; // 如果需要在命名空间外访问，也应声明，但不推荐直接暴露互斥锁
+    extern std::atomic<int> esrResultFlag; // 如果Common.cpp或其他地方需要访问，也应声明
+    extern std::mutex esrResultMutex; // 如果需要在命名空间外访问，也应声明
 }
 #endif
 

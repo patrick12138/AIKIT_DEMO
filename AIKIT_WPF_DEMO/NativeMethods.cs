@@ -251,5 +251,19 @@ namespace AikitWpfDemo
         }
 
         #endregion
+
+        #region 统一语音交互接口
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StartUnifiedVoiceInteraction(int wakeupThreshold, int esrTimeout);
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int StopUnifiedVoiceInteraction();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetUnifiedVoiceState();
+
+        [DllImport(DllPath, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int IsUnifiedVoiceInteractionRunning();
+        #endregion
     }
 }

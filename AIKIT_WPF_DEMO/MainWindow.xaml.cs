@@ -16,6 +16,9 @@ namespace AikitWpfDemo
         
         // 新增: 语音交互管理器
         private VoiceInteractionManager? _voiceManager;
+        
+        // 新增: 统一语音交互监控定时器
+        private DispatcherTimer? _unifiedVoiceMonitorTimer;
 
         public MainWindow()
         {
@@ -322,6 +325,114 @@ namespace AikitWpfDemo
             }
             await Dispatcher.InvokeAsync(() => _popupManager.HidePopup());
             LogHelper.LogMessage("命令词识别自动循环已完全停止。");
+        }
+
+        // 统一语音交互按钮事件
+        private void BtnStartUnifiedVoice_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                TxtLog.Text = string.Empty;
+                LogHelper.LogMessage("启动统一语音交互循环...");
+                
+                BtnStartUnifiedVoice.IsEnabled = false;
+                BtnStopUnifiedVoice.IsEnabled = true;
+                
+                int result = NativeMethods.StartUnifiedVoiceInteraction(50, 10); // 唤醒阈值50，ESR超时10秒
+                if (result == 0)
+                {
+                    LogHelper.LogMessage("统一语音交互循环启动成功！");
+                    
+                    // 启动状态监控定时器
+                    if (_unifiedVoiceMonitorTimer == null)
+                    {
+                        _unifiedVoiceMonitorTimer = new DispatcherTimer();
+                        _unifiedVoiceMonitorTimer.Interval = TimeSpan.FromMilliseconds(500); // 每500ms检查一次状态
+                        _unifiedVoiceMonitorTimer.Tick += (s, args) =>
+                        {
+                            try
+                            {
+                                int state = NativeMethods.GetUnifiedVoiceState();
+                                int isRunning = NativeMethods.IsUnifiedVoiceInteractionRunning();
+                                
+                                // 更新状态显示
+                                string stateName = GetVoiceStateName(state);
+                                LogHelper.LogMessage($"统一语音交互状态: {stateName} (运行中: {(isRunning == 1 ? "是" : "否")})");
+                                
+                                // 如果不再运行，停止监控
+                                if (isRunning == 0)
+                                {
+                                    _unifiedVoiceMonitorTimer.Stop();
+                                    BtnStartUnifiedVoice.IsEnabled = true;
+                                    BtnStopUnifiedVoice.IsEnabled = false;
+                                    LogHelper.LogMessage("统一语音交互循环已自动停止");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                LogHelper.LogMessage($"监控统一语音交互状态异常: {ex.Message}");
+                            }
+                        };
+                    }
+                    _unifiedVoiceMonitorTimer.Start();
+                }
+                else
+                {
+                    LogHelper.LogMessage($"统一语音交互循环启动失败，错误码: {result}");
+                    BtnStartUnifiedVoice.IsEnabled = true;
+                    BtnStopUnifiedVoice.IsEnabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.LogMessage($"启动统一语音交互时发生异常: {ex.Message}");
+                BtnStartUnifiedVoice.IsEnabled = true;
+                BtnStopUnifiedVoice.IsEnabled = false;
+            }
+        }
+
+        private void BtnStopUnifiedVoice_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                LogHelper.LogMessage("停止统一语音交互循环...");
+                
+                _unifiedVoiceMonitorTimer?.Stop();
+                
+                int result = NativeMethods.StopUnifiedVoiceInteraction();
+                if (result == 0)
+                {
+                    LogHelper.LogMessage("统一语音交互循环已停止");
+                }
+                else
+                {
+                    LogHelper.LogMessage($"停止统一语音交互循环失败，错误码: {result}");
+                }
+                
+                BtnStartUnifiedVoice.IsEnabled = true;
+                BtnStopUnifiedVoice.IsEnabled = false;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.LogMessage($"停止统一语音交互时发生异常: {ex.Message}");
+                BtnStartUnifiedVoice.IsEnabled = true;
+                BtnStopUnifiedVoice.IsEnabled = false;
+            }
+        }
+
+        private string GetVoiceStateName(int state)
+        {
+            switch (state)
+            {
+                case 0: return "待机";
+                case 1: return "检测到唤醒";
+                case 2: return "播放提示音";
+                case 3: return "监听命令";
+                case 4: return "命令完成";
+                case 5: return "超时";
+                case 6: return "错误";
+                default: return $"未知状态({state})";
+            }
         }
     }
 }

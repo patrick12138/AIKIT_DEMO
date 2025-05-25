@@ -343,10 +343,6 @@ namespace AIKITDLL {
 	// 新增方法：处理VAD结果
 	void AudioManager::ProcessVadResult(const std::string& vadResult) {
 		LogInfo("AudioManager: VAD检测结果: %s", vadResult.c_str());
-
-		// VAD结果可以帮助判断语音的开始和结束
-		// 当检测到语音结束时，可以设置audio_status_ = AIKIT_DataEnd
-
 		// TODO: 解析VAD JSON结果，检查status字段
 		// 如果status为"SpeechAutoFinish"，表示语音自动结束
 		if (vadResult.find("SpeechAutoFinish") != std::string::npos) {

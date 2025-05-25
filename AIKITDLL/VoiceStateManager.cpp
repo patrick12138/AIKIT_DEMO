@@ -1,8 +1,21 @@
 #include "pch.h"
 #include "VoiceStateManager.h"
 #include "Common.h"
+#include <mutex>
 
 namespace AIKITDLL {
+    // 静态成员定义
+    VoiceStateManager* VoiceStateManager::instance = nullptr;
+    std::mutex VoiceStateManager::instance_mutex;
+
+    VoiceStateManager* VoiceStateManager::GetInstance() {
+        std::lock_guard<std::mutex> lock(instance_mutex);
+        if (instance == nullptr) {
+            instance = new VoiceStateManager();
+        }
+        return instance;
+    }
+
     VoiceStateManager::VoiceStateManager() 
         : currentState(WAKEUP_LISTENING), 
           wakeupDetected(false), 

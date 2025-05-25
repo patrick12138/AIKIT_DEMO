@@ -163,6 +163,7 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="IvwWrapper.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="VoiceCoordinator.h" />
     <ClInclude Include="VoiceStateManager.h" />
     <ClInclude Include="winrec.h" />
   </ItemGroup>
@@ -181,6 +182,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="VoiceCoordinator.cpp" />
     <ClCompile Include="VoiceStateManager.cpp" />
     <ClCompile Include="winrec.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>

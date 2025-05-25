@@ -20,6 +20,8 @@
             <Button x:Name="BtnRunFullTest" Content="命令词识别" Width="100" Margin="5" Click="BtnStartEsr_Click"/>
             <Button x:Name="BtnStartVoiceLoop" Content="开始语音交互" Width="120" Margin="5" Click="BtnStartVoiceLoop_Click"/>
             <Button x:Name="BtnStopVoiceLoop" Content="停止语音交互" Width="120" Margin="5" Click="BtnStopVoiceLoop_Click"/>
+            <Button x:Name="BtnStartUnifiedVoice" Content="启动统一语音交互" Width="150" Height="30" Margin="5" Click="BtnStartUnifiedVoice_Click"/>
+            <Button x:Name="BtnStopUnifiedVoice" Content="停止统一语音交互" Width="150" Height="30" Margin="5" Click="BtnStopUnifiedVoice_Click"/>
         </StackPanel>
     </Grid>
 </Window>
