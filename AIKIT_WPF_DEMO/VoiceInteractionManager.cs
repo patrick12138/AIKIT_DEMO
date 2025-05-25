@@ -16,7 +16,9 @@ namespace AikitWpfDemo
         ProcessingResult, // 处理结果
         Timeout,        // 超时状态
         Error           // 错误状态
-    }    public class VoiceInteractionManager
+    }    
+    
+    public class VoiceInteractionManager
     {
         private VoiceState _currentState = VoiceState.Idle;
         private DispatcherTimer? _timeoutTimer;
@@ -321,7 +323,8 @@ namespace AikitWpfDemo
             await Task.Delay(1000);
             await TransitionToState(VoiceState.Idle);
         }
-          // 检查语音状态
+          
+        // 检查语音状态
         private async void CheckVoiceStatus(object? sender, EventArgs e)
         {
             try
@@ -358,7 +361,8 @@ namespace AikitWpfDemo
                 LogMessage($"状态检查异常: {ex.Message}");
             }
         }
-          // 超时处理
+          
+        // 超时处理
         private async void OnTimeout(object? sender, EventArgs e)
         {
             LogMessage($"在状态 {_currentState} 中发生超时");

@@ -5,21 +5,24 @@ using System.Windows.Threading;
 using AikitWpfDemo;
 
 namespace AikitWpfDemo
-{
-    /// <summary>
+{    /// <summary>
     /// AIKIT 统一语音交互演示窗口
     /// </summary>
     public partial class MainWindow : Window
     {
         // 私有字段
         private DispatcherTimer? _statusUpdateTimer;
-
-        public MainWindow()
+        private VoiceInteractionManager? _voiceManager;
+        private PopupManager? _popupManager;        public MainWindow()
         {
             InitializeComponent();
+            
+            // 首先初始化LogHelper
+            LogHelper.Init(TxtLog);
+            
             InitializeUI();
         }
-
+        
         /// <summary>
         /// 初始化UI组件
         /// </summary>
@@ -28,6 +31,14 @@ namespace AikitWpfDemo
             try
             {
                 LogHelper.LogMessage("初始化AIKIT语音交互演示界面...");
+                  // 初始化弹窗管理器和语音交互管理器
+                _popupManager = new PopupManager();
+                _voiceManager = new VoiceInteractionManager(_popupManager);
+                
+                // 订阅语音管理器事件
+                _voiceManager.OnLogMessage += LogHelper.LogMessage;
+                _voiceManager.OnCommandDetected += OnCommandDetected;
+                _voiceManager.OnStateChanged += OnVoiceStateChanged;
                 
                 // 设置状态监控
                 SetupStatusMonitoring();
@@ -99,16 +110,15 @@ namespace AikitWpfDemo
                 case 4: return "处理完成";
                 default: return "未知状态";
             }
-        }
-
+        }        
         /// <summary>
         /// 开始语音交互按钮点击事件
         /// </summary>
-        private void BtnStartVoice_Click(object sender, RoutedEventArgs e)
+        private async void BtnStartVoice_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                LogHelper.LogMessage("启动统一语音交互...");
+                LogHelper.LogMessage("启动语音交互...");
 
                 // 获取界面参数
                 int wakeupThreshold = 50; // 默认值
@@ -124,44 +134,60 @@ namespace AikitWpfDemo
                     esrTimeout = timeout;
                 }
 
-                // 启动统一语音交互
+                // 启动C++层的统一语音交互
                 int result = NativeMethods.StartUnifiedVoiceInteraction(wakeupThreshold, esrTimeout);
                 
                 if (result == 0)
                 {
-                    LogHelper.LogMessage($"统一语音交互启动成功！唤醒阈值: {wakeupThreshold}, 命令超时: {esrTimeout}秒");
+                    LogHelper.LogMessage($"C++层语音交互启动成功！唤醒阈值: {wakeupThreshold}, 命令超时: {esrTimeout}秒");
+                    
+                    // 启动WPF层的语音交互管理器
+                    if (_voiceManager != null)
+                    {
+                        await _voiceManager.StartInteractionLoop();
+                        LogHelper.LogMessage("WPF层语音交互管理器已启动");
+                    }
+                    
                     BtnStartVoice.IsEnabled = false;
                     BtnStopVoice.IsEnabled = true;
                 }
                 else
                 {
-                    LogHelper.LogMessage($"统一语音交互启动失败，错误码: {result}");
+                    LogHelper.LogMessage($"C++层语音交互启动失败，错误码: {result}");
                 }
             }
             catch (Exception ex)
             {
                 LogHelper.LogMessage($"启动语音交互时发生异常: {ex.Message}");
             }
-        }
-
+        }        
+        
         /// <summary>
         /// 停止语音交互按钮点击事件
         /// </summary>
-        private void BtnStopVoice_Click(object sender, RoutedEventArgs e)
+        private async void BtnStopVoice_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                LogHelper.LogMessage("停止统一语音交互...");
+                LogHelper.LogMessage("停止语音交互...");
 
+                // 停止WPF层的语音交互管理器
+                if (_voiceManager != null)
+                {
+                    await _voiceManager.StopInteractionLoop();
+                    LogHelper.LogMessage("WPF层语音交互管理器已停止");
+                }
+
+                // 停止C++层的统一语音交互
                 int result = NativeMethods.StopUnifiedVoiceInteraction();
                 
                 if (result == 0)
                 {
-                    LogHelper.LogMessage("统一语音交互已成功停止");
+                    LogHelper.LogMessage("C++层语音交互已成功停止");
                 }
                 else
                 {
-                    LogHelper.LogMessage($"停止统一语音交互失败，错误码: {result}");
+                    LogHelper.LogMessage($"停止C++层语音交互失败，错误码: {result}");
                 }
 
                 BtnStartVoice.IsEnabled = true;
@@ -173,8 +199,8 @@ namespace AikitWpfDemo
                 BtnStartVoice.IsEnabled = true;
                 BtnStopVoice.IsEnabled = false;
             }
-        }
-
+        }        
+        
         /// <summary>
         /// 清空日志按钮点击事件
         /// </summary>
@@ -182,7 +208,7 @@ namespace AikitWpfDemo
         {
             try
             {
-                TxtLog.Text = string.Empty;
+                LogHelper.ClearLog();
                 LogHelper.LogMessage("日志已清空");
             }
             catch (Exception ex)
@@ -190,7 +216,7 @@ namespace AikitWpfDemo
                 MessageBox.Show($"清空日志时发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
+        
         /// <summary>
         /// 窗口关闭事件
         /// </summary>
@@ -200,6 +226,9 @@ namespace AikitWpfDemo
             {
                 // 停止状态监控定时器
                 _statusUpdateTimer?.Stop();
+
+                // 停止语音交互管理器
+                _voiceManager?.StopInteractionLoop();
 
                 // 停止统一语音交互
                 NativeMethods.StopUnifiedVoiceInteraction();
@@ -211,6 +240,22 @@ namespace AikitWpfDemo
             }
             
             base.OnClosed(e);
+        }
+
+        /// <summary>
+        /// 语音命令检测到事件处理
+        /// </summary>
+        private void OnCommandDetected(string command)
+        {
+            LogHelper.LogMessage($"检测到语音命令: {command}");
+        }
+
+        /// <summary>
+        /// 语音状态变化事件处理
+        /// </summary>
+        private void OnVoiceStateChanged(VoiceState state)
+        {
+            LogHelper.LogMessage($"语音状态变化: {state}");
         }
     }
 }
