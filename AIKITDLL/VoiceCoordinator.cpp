@@ -17,7 +17,8 @@ extern void ResetWakeupStatus();     // 定义在IvwWrapper.cpp中
 
 // AIKITDLL命名空间中的ESR变量不需要extern声明，直接使用命名空间访问
 
-namespace AIKITDLL {    // 静态成员初始化
+namespace AIKITDLL {    
+	// 静态成员初始化
 	std::unique_ptr<VoiceCoordinator, VoiceCoordinator::Deleter> VoiceCoordinator::instance_ = nullptr;
 	std::mutex VoiceCoordinator::instance_mutex_;
 
@@ -27,7 +28,9 @@ namespace AIKITDLL {    // 静态成员初始化
 			instance_ = std::unique_ptr<VoiceCoordinator, VoiceCoordinator::Deleter>(new VoiceCoordinator());
 		}
 		return *instance_;
-	}    VoiceCoordinator::VoiceCoordinator()
+	}    
+	
+	VoiceCoordinator::VoiceCoordinator()
 		: is_running_(false)
 		, should_stop_(false)
 		, state_manager_(nullptr)
@@ -53,7 +56,9 @@ namespace AIKITDLL {    // 静态成员初始化
 		}
 		CleanupResources();
 		LogInfo("VoiceCoordinator 已销毁");
-	}    int VoiceCoordinator::StartVoiceInteraction(int wakeupThreshold, int esrTimeout) {
+	}    
+	
+	int VoiceCoordinator::StartVoiceInteraction(int wakeupThreshold, int esrTimeout) {
 		std::lock_guard<std::mutex> lock(state_mutex_);
 
 		// 检查是否已经在运行
@@ -229,6 +234,7 @@ namespace AIKITDLL {    // 静态成员初始化
 		// 转换到命令词监听
 		TransitionToState(VoiceState::ListeningCommand);
 	}
+	
 	void VoiceCoordinator::HandleCommandRecognition() {
 		LogDebug("处理命令词识别状态 (迭代 %d)", loop_iteration_.load());
 
@@ -250,7 +256,9 @@ namespace AIKITDLL {    // 静态成员初始化
 			LogInfo("命令词识别完成！");
 			TransitionToState(VoiceState::CommandCompleted);
 		}
-	}	void VoiceCoordinator::HandleCommandCompleted() {
+	}	
+	
+	void VoiceCoordinator::HandleCommandCompleted() {
 		LogInfo("处理命令词完成状态");
 
 		// 停止命令词识别
@@ -270,7 +278,9 @@ namespace AIKITDLL {    // 静态成员初始化
 
 		// 返回唤醒监听
 		TransitionToState(VoiceState::Idle);
-	}void VoiceCoordinator::HandleTimeout() {
+	}
+	
+	void VoiceCoordinator::HandleTimeout() {
 		LogInfo("处理超时状态");
 
 		// 清理当前会话
@@ -290,7 +300,9 @@ namespace AIKITDLL {    // 静态成员初始化
 
 		// 返回唤醒监听
 		TransitionToState(VoiceState::Idle);
-	}void VoiceCoordinator::HandleError() {
+	}
+	
+	void VoiceCoordinator::HandleError() {
 		LogError("处理错误状态: %s", last_error_.c_str());
 
 		// 清理当前会话资源（不是全局SDK）
@@ -368,7 +380,9 @@ namespace AIKITDLL {    // 静态成员初始化
 		}
 
 		return 0;
-	}    bool VoiceCoordinator::CheckWakeupStatus() {
+	}    
+	
+	bool VoiceCoordinator::CheckWakeupStatus() {
 		// 检查全局唤醒标志（两个变量都检查）
 		if (AIKITDLL::wakeupFlag.load() == 1 || ::wakeupFlag == 1) {
 			return true;
@@ -481,7 +495,9 @@ namespace AIKITDLL {    // 静态成员初始化
 		CnenEsrUninit();
 
 		return 0;
-	}    bool VoiceCoordinator::CheckCommandStatus() {
+	}    
+	
+	bool VoiceCoordinator::CheckCommandStatus() {
 		std::lock_guard<std::mutex> lock(AIKITDLL::esrResultMutex);
 
 		// 检查是否成功识别到命令词
@@ -572,6 +588,7 @@ namespace AIKITDLL {    // 静态成员初始化
 			state_cv_.notify_all();
 		}
 	}    // 手动触发函数（用于测试）
+	
 	void VoiceCoordinator::TriggerWakeupDetected() {
 		LogInfo("手动触发唤醒检测");
 		AIKITDLL::wakeupFlag = 1;
@@ -595,9 +612,6 @@ namespace AIKITDLL {    // 静态成员初始化
 
 } // namespace AIKITDLL
 
-// ================================
-// 全局便捷函数的实现 (extern "C")
-// ================================
 
 extern "C" {
 	// 启动统一的语音交互流程
