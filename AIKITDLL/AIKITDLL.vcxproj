@@ -156,7 +156,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AudioManager.h" />
-    <ClInclude Include="ContinuousWakeup.h" />
     <ClInclude Include="CnenEsrWrapper.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="EsrHelper.h" />
@@ -172,7 +171,6 @@
     <ClCompile Include="AudioManager.cpp" />
     <ClCompile Include="CnenEsrWrapper.cpp" />
     <ClCompile Include="Common.cpp" />
-    <ClCompile Include="ContinuousWakeup.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="EsrHelper.cpp" />
     <ClCompile Include="IvwWrapper.cpp" />

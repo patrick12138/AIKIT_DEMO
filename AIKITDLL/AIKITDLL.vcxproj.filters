@@ -39,9 +39,6 @@
     <ClInclude Include="VoiceStateManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="ContinuousWakeup.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="AudioManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -75,9 +72,6 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="VoiceStateManager.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="ContinuousWakeup.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="AudioManager.cpp">

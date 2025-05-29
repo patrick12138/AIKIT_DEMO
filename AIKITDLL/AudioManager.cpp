@@ -17,6 +17,7 @@ namespace AIKITDLL {
 		}
 		return *instance_;
 	}	
+	
 	AudioManager::AudioManager()
 		: recorder_(nullptr),
 		current_consumer_(AudioConsumer::NONE),
@@ -38,10 +39,12 @@ namespace AIKITDLL {
 		wave_format_.nAvgBytesPerSec = wave_format_.nSamplesPerSec * wave_format_.nBlockAlign;		wave_format_.cbSize = 0;
 		LogInfo("AudioManager: 实例已创建。");
 	}
+	
 	AudioManager::~AudioManager() {
 		Uninitialize(); // Ensure resources are freed
 		LogInfo("AudioManager: 实例已销毁。");
 	}
+	
 	bool AudioManager::Initialize(int devid) {
 		if (is_initialized_) {
 			LogWarning("AudioManager: 已经初始化。");
@@ -58,6 +61,7 @@ namespace AIKITDLL {
 		LogInfo("AudioManager: 初始化成功，设备ID: %d。", devid);
 		return true;
 	}
+	
 	void AudioManager::Uninitialize() {
 		if (!is_initialized_) {
 			LogWarning("AudioManager: 未初始化，无需反初始化。");
@@ -73,6 +77,7 @@ namespace AIKITDLL {
 		is_initialized_ = false;
 		LogInfo("AudioManager: 已反初始化。");
 	}
+	
 	bool AudioManager::ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder, const char* audioKey) {
 		if (!is_initialized_) {
 			LogError("AudioManager: 无法激活消费者，AudioManager未初始化。");
@@ -180,6 +185,7 @@ namespace AIKITDLL {
 		LogInfo("AudioManager: ===== 消费者激活完成 =====");
 		return true;
 	}
+	
 	bool AudioManager::DeactivateConsumer(AudioConsumer consumer) {
 		if (!is_initialized_) {
 			LogWarning("AudioManager: 未初始化。无法停用消费者。");
@@ -215,6 +221,7 @@ namespace AIKITDLL {
 			return false;
 		}
 	}
+	
 	bool AudioManager::ForceStopRecording() {
 		LogInfo("AudioManager: 调用强制停止录音。");
 		if (!is_initialized_ && !is_recording_) {
@@ -460,6 +467,7 @@ namespace AIKITDLL {
 			LogInfo("AudioManager: 检测到语音结束，设置状态为 AIKIT_DataEnd");
 		}
 	}
+	
 	// 新增方法：命令词检测回调
 	void AudioManager::OnCommandDetected(const std::string& command) {
 		LogInfo("AudioManager: 检测到命令词: %s", command.c_str());
@@ -472,6 +480,7 @@ namespace AIKITDLL {
 
 		// TODO: 根据具体业务需求实现命令响应逻辑
 	}
+	
 	// 实现超时检查
 	void AudioManager::CheckTimeout() {
 		if (current_consumer_ == AudioConsumer::ESR) {
@@ -489,6 +498,7 @@ namespace AIKITDLL {
 				ForceStopRecording();
 			}		}
 	}	// 新增方法：清理音频缓冲区，防止旧数据干扰新会话
+	
 	void AudioManager::ClearAudioBuffers() {
 		LogInfo("AudioManager: ========== 开始彻底清理音频缓冲区 ==========");
 		LogInfo("AudioManager: 清理原因：防止旧数据干扰新会话");
