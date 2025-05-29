@@ -16,7 +16,8 @@ namespace AIKITDLL {
 			instance_ = new AudioManager();
 		}
 		return *instance_;
-	}	AudioManager::AudioManager()
+	}	
+	AudioManager::AudioManager()
 		: recorder_(nullptr),
 		current_consumer_(AudioConsumer::NONE),
 		active_handle_(nullptr),
@@ -248,7 +249,9 @@ namespace AIKITDLL {
 			AudioManager* manager = static_cast<AudioManager*>(userData);
 			manager->ProcessAudioData(data, len);
 		}
-	}	void AudioManager::ProcessAudioData(char* data, unsigned long len) {
+	}	
+	
+	void AudioManager::ProcessAudioData(char* data, unsigned long len) {
 		if (!active_handle_ || !active_data_builder_ || !active_audio_key_) {
 			LogWarning("AudioManager: ProcessAudioData - 缺少必要参数，跳过处理");
 			return;

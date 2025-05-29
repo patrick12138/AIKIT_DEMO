@@ -36,10 +36,11 @@ namespace AIKITDLL {
 		strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_now);
 		return std::string(buffer);
 	}
-	void AIKITDLL::OnOutput(AIKIT_HANDLE* handle, const AIKIT_OutputData* output) {
+
+	void OnOutput(AIKIT_HANDLE* handle, const AIKIT_OutputData* output) {
 		if (!handle || !output || !output->node) {
-			LogError("OnOutput received invalid parameters: handle=%p", static_cast<void*>(handle));
-			if (output && !output->node) LogError("Output node is null.");
+			LogError("OnOutput接收到无效参数: handle=%p", static_cast<void*>(handle));
+			if (output && !output->node) LogError("输出节点为空。");
 			return;
 		}
 
@@ -71,10 +72,10 @@ namespace AIKITDLL {
 
 			// --- IVW (唤醒) 处理 ---
 			if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
-				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce || output->node->status == AIKIT_DataBegin) {					if (output->node->len > 0) { // 确保有实际数据
+				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce || output->node->status == AIKIT_DataBegin) {
+					if (output->node->len > 0) { // 确保有实际数据
 						AIKITDLL::wakeupDetected = true;
 						::wakeupFlag = 1;
-						AIKITDLL::wakeupFlag.store(1); // 同时设置命名空间中的atomic变量
 						AIKITDLL::wakeupInfoString = resultText;
 						AIKITDLL::lastResult = "唤醒结果: " + resultText;
 						LogInfo("唤醒词检测到 (status %d): %s", output->node->status, resultText.c_str());
@@ -85,50 +86,9 @@ namespace AIKITDLL {
 						AIKITDLL::lastResult = "唤醒结果: 无效 (空值, status " + std::to_string(output->node->status) + ")";
 						LogWarning("唤醒引擎: 最终/单次结果包 (status %d) 值为空或长度为0. 非成功唤醒.", output->node->status);
 					}
-				} else if (output->node->status == AIKIT_DataBegin || output->node->status == AIKIT_DataContinue) {
+				} else if (output->node->status == AIKIT_DataContinue) {
 					LogInfo("唤醒引擎: 中间数据包 (status %d): %s", output->node->status, resultText.c_str());
 					// 中间包不设置唤醒成功状态
-				}
-			}
-			// --- ESR (命令词识别) 处理 ---
-			else if (!strcmp(handle->abilityID, AIKITDLL::ESR_ABILITY_ID)) {
-				LogInfo("命令词引擎原始输出 (status %d): %s", output->node->status, resultText.c_str());				if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce) {
-					LogInfo("命令词最终/单次结果包 (status %d)", output->node->status);
-					// 假设 EsrHelper::ProcessRecognitionResult 会处理 resultText 并设置 g_hasNewReadableResult
-					// EsrHelper::ProcessRecognitionResult(resultText.c_str()); // 如果需要调用
-					if (g_hasNewReadableResult) {
-						AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_SUCCESS_INTERNAL;
-						// 正确处理UTF-8编码的命令词结果
-						std::string rawResult = std::string(g_readableResultBuffer);
-						std::string processedResult = rawResult;
-						try {
-							// 尝试UTF-8转换以确保中文正确显示
-							processedResult = UTF8ToLocalString(rawResult.c_str());
-							if (processedResult.empty()) {
-								processedResult = rawResult; // 转换失败时保持原文
-							}
-						} catch (...) {
-							processedResult = rawResult;
-						}
-						
-						AIKITDLL::lastEsrKeywordResult = processedResult;
-						AIKITDLL::lastEsrErrorInfo = "";
-						AIKITDLL::lastResult = "命令词识别: " + processedResult;
-						LogInfo("命令词识别成功 (EsrHelper): %s", processedResult.c_str());
-						g_hasNewReadableResult = false; // 读取后重置标志
-					} else {
-						AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_NO_MATCH_INTERNAL;
-						AIKITDLL::lastEsrKeywordResult = "未匹配";
-						AIKITDLL::lastEsrErrorInfo = ""; // 没有SDK错误，只是未匹配
-						AIKITDLL::lastResult = "命令词结果: 未匹配";
-						LogInfo("命令词最终/单次结果: 未匹配 (EsrHelper g_hasNewReadableResult is false, status %d)", output->node->status);
-					}
-				} else if (output->node->status == AIKIT_DataBegin || output->node->status == AIKIT_DataContinue) {
-					// AIKITDLL::esrStatus 应该由调用方设置为 ESR_STATUS_PROCESSING_INTERNAL
-					AIKITDLL::lastResult = "命令词中间结果: " + resultText;
-					LogInfo("命令词中间结果 (status %d): %s", output->node->status, resultText.c_str());
-				} else {
-					LogWarning("命令词引擎: 未知或未处理的 output->node->status: %d", output->node->status);
 				}
 			}
 			// --- 其他能力处理 ---
@@ -149,20 +109,12 @@ namespace AIKITDLL {
 				case AIKIT_DataEnd:      statusStr = "End"; break;
 				case AIKIT_DataOnce:     statusStr = "Once"; break;
 			}
-			LogWarning("OnOutput received output with NULL value. Key: %s, Status: %d (%s)",
+			LogWarning("OnOutput收到空值输出。Key: %s, Status: %d (%s)",
 				output->node->key ? output->node->key : "N/A",
 				output->node->status, statusStr.c_str());
 
 			if (output->node->status == AIKIT_DataEnd || output->node->status == AIKIT_DataOnce) {
-				if (!strcmp(handle->abilityID, AIKITDLL::ESR_ABILITY_ID)) {
-					if (AIKITDLL::esrStatus != AIKITDLL::ESR_STATUS_SUCCESS_INTERNAL) { // 避免覆盖可能的多包最终结果
-						AIKITDLL::esrStatus = AIKITDLL::ESR_STATUS_NO_MATCH_INTERNAL;
-						AIKITDLL::lastEsrKeywordResult = "未匹配 (空结果)";
-						AIKITDLL::lastEsrErrorInfo = "最终结果包为空";
-						AIKITDLL::lastResult = "命令词结果: 未匹配 (空结果)";
-						LogWarning("命令词引擎: 最终/单次结果包 (status %d) 为空.", output->node->status);
-					}
-				} else if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
+				if (!strcmp(handle->abilityID, IVW_ABILITY) || !strcmp(handle->abilityID, CNENIVW_ABILITY)) {
 					AIKITDLL::wakeupDetected = false; // 确保唤醒失败
 					// ::wakeupFlag 应该为0
 					AIKITDLL::wakeupInfoString = "";
