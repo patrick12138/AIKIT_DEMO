@@ -15,7 +15,7 @@ namespace AikitWpfDemo
         private string _lastPlainResult = string.Empty;
         private string _lastReadableResult = string.Empty;
         private bool _mergeResults = true;
-
+        
         public ResultMonitor(Action<string> onNewResult, bool mergeResults = true)
         {
             _onNewResult = onNewResult;

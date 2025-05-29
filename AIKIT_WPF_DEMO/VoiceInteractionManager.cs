@@ -84,7 +84,9 @@ namespace AikitWpfDemo
         {
             LogMessage("开始语音交互循环");
             await TransitionToState(VoiceState.Idle);
-        }        // 停止语音交互循环
+        }        
+        
+        // 停止语音交互循环
         public async Task StopInteractionLoop()
         {
             LogMessage("停止语音交互循环");
@@ -143,6 +145,7 @@ namespace AikitWpfDemo
                     break;
             }
         }        // 处理待机状态（监听唤醒词）
+        
         private async Task HandleIdleState()
         {
             LogMessage("进入待机状态，等待唤醒词检测...");
@@ -175,7 +178,8 @@ namespace AikitWpfDemo
                 await TransitionToState(VoiceState.Error);
             }
         }
-          // 处理检测到唤醒词
+          
+        // 处理检测到唤醒词
         private async Task HandleWakeupDetected()
         {
             LogMessage("检测到唤醒词！统一语音交互系统已自动处理");
@@ -214,7 +218,8 @@ namespace AikitWpfDemo
                 await TransitionToState(VoiceState.ListeningCommand);
             }
         }
-          // 处理监听命令词
+          
+        // 处理监听命令词
         private async Task HandleListeningCommand()
         {            LogMessage("开始监听命令词...");
             
@@ -280,6 +285,7 @@ namespace AikitWpfDemo
                 await TransitionToState(VoiceState.Error);
             }
         }          // 处理超时或错误
+        
         private async Task HandleTimeoutOrError()
         {
             LogMessage("处理超时或错误，统一语音交互系统会自动恢复");

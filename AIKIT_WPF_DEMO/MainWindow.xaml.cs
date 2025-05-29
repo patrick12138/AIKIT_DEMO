@@ -111,7 +111,9 @@ namespace AikitWpfDemo
                 case 4: return "处理完成";
                 default: return "未知状态";
             }
-        }        /// <summary>
+        }   
+        
+        /// <summary>
         /// 开始语音交互按钮点击事件
         /// </summary>
         private async void BtnStartVoice_Click(object sender, RoutedEventArgs e)
@@ -160,7 +162,9 @@ namespace AikitWpfDemo
             {
                 LogHelper.LogMessage($"启动语音交互时发生异常: {ex.Message}");
             }
-        }        /// <summary>
+        }        
+        
+        /// <summary>
         /// 停止语音交互按钮点击事件
         /// </summary>
         private async void BtnStopVoice_Click(object sender, RoutedEventArgs e)
@@ -197,7 +201,9 @@ namespace AikitWpfDemo
                 BtnStartVoice.IsEnabled = true;
                 BtnStopVoice.IsEnabled = false;
             }
-        }        /// <summary>
+        }        
+        
+        /// <summary>
         /// 清空日志按钮点击事件
         /// </summary>
         private void BtnClearLog_Click(object sender, RoutedEventArgs e)
@@ -211,7 +217,9 @@ namespace AikitWpfDemo
             {
                 MessageBox.Show($"清空日志时发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }/// <summary>
+        }
+        
+        /// <summary>
         /// 窗口关闭事件
         /// </summary>
         protected override void OnClosed(EventArgs e)
