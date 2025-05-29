@@ -34,38 +34,32 @@ namespace AIKITDLL {
 		wave_format_.nSamplesPerSec = 16000;
 		wave_format_.wBitsPerSample = 16;
 		wave_format_.nBlockAlign = (wave_format_.nChannels * wave_format_.wBitsPerSample) / 8;
-		wave_format_.nAvgBytesPerSec = wave_format_.nSamplesPerSec * wave_format_.nBlockAlign;
-		wave_format_.cbSize = 0;
-		LogInfo("AudioManager: Instance created.");
+		wave_format_.nAvgBytesPerSec = wave_format_.nSamplesPerSec * wave_format_.nBlockAlign;		wave_format_.cbSize = 0;
+		LogInfo("AudioManager: 实例已创建。");
 	}
-
 	AudioManager::~AudioManager() {
 		Uninitialize(); // Ensure resources are freed
-		LogInfo("AudioManager: Instance destroyed.");
+		LogInfo("AudioManager: 实例已销毁。");
 	}
-
 	bool AudioManager::Initialize(int devid) {
 		if (is_initialized_) {
-			LogWarning("AudioManager: Already initialized.");
+			LogWarning("AudioManager: 已经初始化。");
 			return true;
 		}
 
 		device_id_ = devid;
-		int errcode = create_recorder(&recorder_, AudioManager::AudioCallback, this);
-		if (errcode != 0 || !recorder_) {
+		int errcode = create_recorder(&recorder_, AudioManager::AudioCallback, this);		if (errcode != 0 || !recorder_) {
 			recorder_ = nullptr; // Ensure recorder_ is null on failure
-			LogError("AudioManager: Failed to create recorder. Error code: %d", errcode);
+			LogError("AudioManager: 创建录音器失败。错误码: %d", errcode);
 			return false;
 		}
-
 		is_initialized_ = true;
-		LogInfo("AudioManager: Initialized successfully with device ID: %d.", devid);
+		LogInfo("AudioManager: 初始化成功，设备ID: %d。", devid);
 		return true;
 	}
-
 	void AudioManager::Uninitialize() {
 		if (!is_initialized_) {
-			LogWarning("AudioManager: Not initialized, nothing to uninitialize.");
+			LogWarning("AudioManager: 未初始化，无需反初始化。");
 			return;
 		}
 
@@ -75,22 +69,20 @@ namespace AIKITDLL {
 			destroy_recorder(recorder_);
 			recorder_ = nullptr;
 		}
-
 		is_initialized_ = false;
-		LogInfo("AudioManager: Uninitialized.");
+		LogInfo("AudioManager: 已反初始化。");
 	}
-
 	bool AudioManager::ActivateConsumer(AudioConsumer consumer, AIKIT_HANDLE* consumerHandle, AIKIT::AIKIT_DataBuilder* consumerDataBuilder, const char* audioKey) {
 		if (!is_initialized_) {
-			LogError("AudioManager: Cannot activate consumer, AudioManager not initialized.");
+			LogError("AudioManager: 无法激活消费者，AudioManager未初始化。");
 			return false;
 		}
 		if (!consumerHandle || !consumerDataBuilder) {
-			LogError("AudioManager: Cannot activate consumer, consumerHandle or consumerDataBuilder is NULL.");
+			LogError("AudioManager: 无法激活消费者，consumerHandle或consumerDataBuilder为空。");
 			return false;
 		}
 		if (consumer == AudioConsumer::NONE) {
-			LogError("AudioManager: Cannot activate AudioConsumer::NONE.");
+			LogError("AudioManager: 无法激活AudioConsumer::NONE。");
 			return false;
 		}
 
@@ -153,9 +145,8 @@ namespace AIKITDLL {
 		}
 
 		if (!is_recording_) {
-			LogInfo("AudioManager: 录音未启动，准备启动录音设备");
-			if (!recorder_) {
-				LogError("AudioManager: Recorder is NULL, cannot start recording.");
+			LogInfo("AudioManager: 录音未启动，准备启动录音设备");			if (!recorder_) {
+				LogError("AudioManager: 录音器为空，无法开始录音。");
 				current_consumer_ = AudioConsumer::NONE;
 				active_handle_ = nullptr;
 				active_data_builder_ = nullptr;
@@ -163,17 +154,15 @@ namespace AIKITDLL {
 			}
 			int open_ret = open_recorder(recorder_, device_id_, &wave_format_);
 			if (open_ret != 0) {
-				LogError("AudioManager: Failed to open recorder. Error: %d. Device ID: %d", open_ret, device_id_);
+				LogError("AudioManager: 打开录音器失败。错误: %d。设备ID: %d", open_ret, device_id_);
 				current_consumer_ = AudioConsumer::NONE;
 				active_handle_ = nullptr;
 				active_data_builder_ = nullptr;
 				return false;
 			}
-			LogInfo("AudioManager: Recorder opened successfully.");
-
-			int start_ret = start_record(recorder_);
+			LogInfo("AudioManager: 录音器打开成功。");			int start_ret = start_record(recorder_);
 			if (start_ret != 0) {
-				LogError("AudioManager: Failed to start recording. Error: %d", start_ret);
+				LogError("AudioManager: 开始录音失败。错误: %d", start_ret);
 				close_recorder(recorder_);
 				current_consumer_ = AudioConsumer::NONE;
 				active_handle_ = nullptr;
@@ -181,7 +170,7 @@ namespace AIKITDLL {
 				return false;
 			}
 			is_recording_ = true;
-			LogInfo("AudioManager: Recording started for consumer: %d", static_cast<int>(consumer));
+			LogInfo("AudioManager: 为消费者开始录音: %d", static_cast<int>(consumer));
 		}
 		else {
 			LogInfo("AudioManager: 录音已在进行，直接切换到新消费者: %d", static_cast<int>(consumer));
@@ -190,67 +179,61 @@ namespace AIKITDLL {
 		LogInfo("AudioManager: ===== 消费者激活完成 =====");
 		return true;
 	}
-
 	bool AudioManager::DeactivateConsumer(AudioConsumer consumer) {
 		if (!is_initialized_) {
-			LogWarning("AudioManager: Not initialized. Cannot deactivate consumer.");
+			LogWarning("AudioManager: 未初始化。无法停用消费者。");
 			return false;
 		}
-		LogInfo("AudioManager: Attempting to deactivate consumer: %d. Current active: %d", static_cast<int>(consumer), static_cast<int>(current_consumer_));
+		LogInfo("AudioManager: 尝试停用消费者: %d。当前活动消费者: %d", static_cast<int>(consumer), static_cast<int>(current_consumer_));
 
-		if (current_consumer_ == consumer && consumer != AudioConsumer::NONE) {
-			current_consumer_ = AudioConsumer::NONE;
+		if (current_consumer_ == consumer && consumer != AudioConsumer::NONE) {			current_consumer_ = AudioConsumer::NONE;
 			active_handle_ = nullptr;
 			active_data_builder_ = nullptr;
-			LogInfo("AudioManager: Consumer %d deactivated.", static_cast<int>(consumer));
+			LogInfo("AudioManager: 消费者 %d 已停用。", static_cast<int>(consumer));
 
-			if (is_recording_) {
-				if (recorder_) {
+			if (is_recording_) {				if (recorder_) {
 					int stop_ret = stop_record(recorder_);
 					if (stop_ret != 0) {
-						LogError("AudioManager: Failed to stop recording. Error: %d", stop_ret);
+						LogError("AudioManager: 停止录音失败。错误: %d", stop_ret);
 					}
 					else {
-						LogInfo("AudioManager: Recording stopped.");
+						LogInfo("AudioManager: 录音已停止。");
 					}
 					close_recorder(recorder_);
-					LogInfo("AudioManager: Recorder closed.");
+					LogInfo("AudioManager: 录音器已关闭。");
 				}
 				is_recording_ = false;
 			}
 			return true;
-		}
-		else if (consumer == AudioConsumer::NONE) {
-			LogWarning("AudioManager: Attempted to deactivate AudioConsumer::NONE.");
+		}		else if (consumer == AudioConsumer::NONE) {
+			LogWarning("AudioManager: 尝试停用AudioConsumer::NONE。");
 			return false;
 		}
 		else {
-			LogWarning("AudioManager: Consumer %d was not the active consumer (%d). No action taken for deactivation.", static_cast<int>(consumer), static_cast<int>(current_consumer_));
+			LogWarning("AudioManager: 消费者 %d 不是活动消费者 (%d)。停用时未采取任何操作。", static_cast<int>(consumer), static_cast<int>(current_consumer_));
 			return false;
 		}
 	}
-
 	bool AudioManager::ForceStopRecording() {
-		LogInfo("AudioManager: ForceStopRecording called.");
+		LogInfo("AudioManager: 调用强制停止录音。");
 		if (!is_initialized_ && !is_recording_) {
-			LogWarning("AudioManager: Not initialized or not recording. Nothing to stop forcefully.");
+			LogWarning("AudioManager: 未初始化或未录音。无需强制停止。");
 			return true;
 		}
 
 		current_consumer_ = AudioConsumer::NONE;
 		active_handle_ = nullptr;
 		active_data_builder_ = nullptr;
-
 		if (is_recording_ && recorder_) {
 			int stop_ret = stop_record(recorder_);
 			if (stop_ret != 0) {
-				LogError("AudioManager: Failed to stop recording during ForceStopRecording. Error: %d", stop_ret);
+				LogError("AudioManager: 强制停止录音期间停止录音失败。错误: %d", stop_ret);
 			}
 			else {
-				LogInfo("AudioManager: Recording stopped due to ForceStopRecording.");
+				LogInfo("AudioManager: 由于强制停止录音而停止录音。");
 			}
 			close_recorder(recorder_);
-			LogInfo("AudioManager: Recorder closed due to ForceStopRecording.");
+			LogInfo("AudioManager: 由于强制停止录音而关闭录音器。");
 		}
 		is_recording_ = false;
 		return true;
@@ -348,21 +331,18 @@ namespace AIKITDLL {
 			->data(data, len)
 			->status(audio_status_)
 			->valid();
-
 		if (!aiAudio) {
-			LogError("AudioManager: Failed to create AiAudio object.");
+			LogError("AudioManager: 创建AiAudio对象失败。");
 			return;
 		}
 		active_data_builder_->payload(aiAudio);
-
 		AIKIT_InputData* input_data = AIKIT::AIKIT_Builder::build(active_data_builder_);
 		if (!input_data) {
-			LogError("AudioManager: Failed to build AIKIT_InputData.");
+			LogError("AudioManager: 构建AIKIT_InputData失败。");
 			return;
-		}
-		int ret = AIKIT::AIKIT_Write(active_handle_, input_data);
+		}		int ret = AIKIT::AIKIT_Write(active_handle_, input_data);
 		if (ret != 0) {
-			LogError("AudioManager: AIKIT_Write failed. Error: %d. Consumer: %d", ret, static_cast<int>(current_consumer_));
+			LogError("AudioManager: AIKIT_Write失败。错误: %d。消费者: %d", ret, static_cast<int>(current_consumer_));
 			return; // 写入失败时直接返回，避免继续读取
 		}
 
