@@ -144,8 +144,9 @@ namespace AikitWpfDemo
                     await HandleTimeoutOrError();
                     break;
             }
-        }        // 处理待机状态（监听唤醒词）
+        }        
         
+        // 处理待机状态（监听唤醒词）
         private async Task HandleIdleState()
         {
             LogMessage("进入待机状态，等待唤醒词检测...");
@@ -284,30 +285,29 @@ namespace AikitWpfDemo
                 LogMessage($"处理结果异常: {ex.Message}");
                 await TransitionToState(VoiceState.Error);
             }
-        }          // 处理超时或错误
-        
+        }
+
+        // 处理超时或错误
         private async Task HandleTimeoutOrError()
         {
             LogMessage("处理超时或错误，统一语音交互系统会自动恢复");
-            
+
             // 注意：不强制停止统一语音交互系统，让它自然处理超时和恢复
             // 统一语音交互系统具有自动恢复机制
-            
+
             // 显示超时信息
             if (_currentState == VoiceState.Timeout)
             {
-                await _popupManager.ShowPopupWithAutoCloseAsync("监听超时，正在重新启动...", 2000);
                 LogMessage("ESR识别超时，统一语音交互系统将自动返回唤醒监听状态");
             }
             else
             {
-                await _popupManager.ShowPopupWithAutoCloseAsync("发生错误，正在恢复...", 2000);
                 LogMessage("发生错误，统一语音交互系统将自动恢复");
             }
-            
+
             // 短暂等待让用户看到提示信息
             await Task.Delay(1500);
-            
+
             // 返回待机状态，开始下一轮监控
             await TransitionToState(VoiceState.Idle);
         }

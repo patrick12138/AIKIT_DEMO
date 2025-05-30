@@ -290,6 +290,7 @@ extern "C" __declspec(dllexport) int GetEsrResult(char* buffer, int bufferSize)
     return 0;
 }
 
+
 extern "C" __declspec(dllexport) int GetEsrStatus()
 {
     // 返回内部状态值，C#端可以映射回自己的状态定义

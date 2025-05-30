@@ -67,7 +67,7 @@ namespace AIKITDLL {
 		AIKITDLL::LogDebug("AIKIT SDK初始化成功，开始初始化功能组件...\n");
 
 		AIKITDLL::LogInfo("开始初始化能力与引擎");
-		
+
 		// 初始化唤醒功能
 		ret = Ivw70Init();
 		if (ret != 0)
@@ -87,10 +87,11 @@ namespace AIKITDLL {
 		LogInfo("InitializeAIKitSDK: 准备调用 AudioManager::GetInstance().Initialize()...");
 		bool audioManagerInitSuccess = AudioManager::GetInstance().Initialize(0);
 		if (audioManagerInitSuccess) {
-			LogInfo("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用成功。");
+			LogInfo("InitializeAIKitSDK: 录音入口统一初始化成功。");
 		}
 		else {
-			LogError("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用失败!");		}
+			LogError("InitializeAIKitSDK: AudioManager::GetInstance().Initialize() 调用失败!");
+		}
 
 		AIKITDLL::LogInfo("全局初始化完成");
 		isInitialized = true; // 标记SDK已初始化

@@ -158,16 +158,28 @@ namespace AIKITDLL {
 		}
 	}
 
+	// 生成带时间戳的日志文件名
+	std::string GenerateLogFileName() {
+		time_t now = time(nullptr);
+		struct tm tm_now;
+		localtime_s(&tm_now, &now);
+		char buffer[256];
+		strftime(buffer, sizeof(buffer), "C:\\AIKITDLL\\aikit_wpf_%Y%m%d_%H%M%S.log", &tm_now);
+		return std::string(buffer);
+	}
+
 	// 将日志写入文件
 	void WriteToLogFile(const std::string& level, const std::string& message) {
+		static std::string logFileName = GenerateLogFileName(); // 静态变量，程序启动时只生成一次
+		
 		std::lock_guard<std::mutex> lock(logMutex);
-		std::ofstream logFile("C:\\AIKITDLL\\aikit_wpf.log", std::ios::app);
+		std::ofstream logFile(logFileName, std::ios::app);
 		if (logFile.is_open()) {
 			logFile << GetCurrentTimeString() << " [" << level << "] " << message << std::endl;
 			logFile.close();
 		}
 	}
-
+	
 	// 通用日志函数的实现
 	void LogCommon(const char* level, const char* format, va_list args) {
 		char buffer[4096] = { 0 };
